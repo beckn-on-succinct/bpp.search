@@ -3,9 +3,7 @@ package in.succinct.bpp.search.db.model;
 import com.venky.swf.db.annotations.column.indexing.Index;
 import com.venky.swf.db.model.Model;
 
-public interface Item extends Model,IndexedProviderModel {
-    public Boolean isActive();
-    public void setActive(Boolean active);
+public interface Item extends Model,IndexedActivatableModel {
 
     @Index
     public Long getCategoryId();
