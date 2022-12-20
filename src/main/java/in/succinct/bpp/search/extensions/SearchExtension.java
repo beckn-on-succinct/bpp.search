@@ -48,6 +48,13 @@ public class SearchExtension extends BppActionExtension {
 
     @Override
     public void search(Request request, Request reply) {
+        try{
+            _search(request,reply);
+        }catch (Exception ex){
+
+        }
+    }
+    public void _search(Request request, Request reply) {
       //request.getContext().
         Message message  = request.getMessage();
         Intent intent = message.getIntent();
@@ -69,13 +76,13 @@ public class SearchExtension extends BppActionExtension {
         }
         if (categoryDescriptor != null){
             if (q.length() > 0){
-                q.append( " AND ");
+                q.append( intentDescriptor == null ? " AND " : " OR " );
             }
             q.append(String.format(" CATEGORY:%s* ",categoryDescriptor.getName()));
         }
         if (itemDescriptor != null){
             if (q.length() > 0){
-                q.append( " AND ");
+                q.append( intentDescriptor == null ? " AND " : " OR " );
             }
             q.append(String.format(" OBJECT_NAME:%s* ",itemDescriptor.getName()));
         }

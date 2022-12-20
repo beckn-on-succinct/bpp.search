@@ -2,12 +2,14 @@ package in.succinct.bpp.search.controller;
 
 import com.venky.cache.Cache;
 import com.venky.swf.controller.ModelController;
+import com.venky.swf.controller.annotations.RequireLogin;
 import com.venky.swf.db.Database;
 import com.venky.swf.db.model.Model;
 import com.venky.swf.integration.api.HttpMethod;
 import com.venky.swf.path.Path;
 import com.venky.swf.views.View;
 import in.succinct.beckn.BecknObject;
+import in.succinct.beckn.BecknStrings;
 import in.succinct.beckn.Categories;
 import in.succinct.beckn.Category;
 import in.succinct.beckn.Descriptor;
@@ -59,7 +61,7 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
 
 
 
-
+    @RequireLogin(false)
     public View ingest() throws Exception{
         ensureIntegrationMethod(HttpMethod.POST);
 
@@ -112,40 +114,61 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
 
 
 
-        for (int j = 0 ; j < categories.size() ; j++){
-            Category category = categories.get(j);
-            in.succinct.bpp.search.db.model.Category model = ensureProviderModel(in.succinct.bpp.search.db.model.Category.class,provider,active,category);
-            categoryMap.put(model.getObjectId(),model);
+        if (categories != null){
+            for (int j = 0 ; j < categories.size() ; j++){
+                Category category = categories.get(j);
+                in.succinct.bpp.search.db.model.Category model = ensureProviderModel(in.succinct.bpp.search.db.model.Category.class,provider,active,category);
+                categoryMap.put(model.getObjectId(),model);
+            }
         }
-        for (int j = 0 ; j < fulfillments.size() ; j++){
-            Fulfillment fulfillment = fulfillments.get(j);
-            in.succinct.bpp.search.db.model.Fulfillment model = ensureProviderModel(in.succinct.bpp.search.db.model.Fulfillment.class,provider,active,fulfillment);
-            fulfillmentMap.put(model.getObjectId(),model);
+        if (fulfillments != null) {
+            for (int j = 0; j < fulfillments.size(); j++) {
+                Fulfillment fulfillment = fulfillments.get(j);
+                in.succinct.bpp.search.db.model.Fulfillment model = ensureProviderModel(in.succinct.bpp.search.db.model.Fulfillment.class, provider, active, fulfillment);
+                fulfillmentMap.put(model.getObjectId(), model);
+            }
         }
-        for (int j = 0 ; j < payments.size() ; j++){
-            Payment payment = payments.get(j);
-            in.succinct.bpp.search.db.model.Payment model = ensurePayment(provider,payment);
-            paymentMap.put(model.getObjectId(),model);
+        if (payments != null) {
+            for (int j = 0; j < payments.size(); j++) {
+                Payment payment = payments.get(j);
+                in.succinct.bpp.search.db.model.Payment model = ensurePayment(provider, payment);
+                paymentMap.put(model.getObjectId(), model);
+            }
         }
-        for (int j = 0 ; j < locations.size() ; j++){
-            Location location = locations.get(j);
-            ProviderLocation model = ensureProviderModel(ProviderLocation.class,provider,active,location);
-            providerLocationMap.put(model.getObjectId(),model);
+        if (locations != null) {
+            for (int j = 0; j < locations.size(); j++) {
+                Location location = locations.get(j);
+                ProviderLocation model = ensureProviderModel(ProviderLocation.class, provider, active, location);
+                providerLocationMap.put(model.getObjectId(), model);
+            }
         }
 
-
-        for (int j = 0 ; j < items.size() ; j++){
-            Item item = items.get(j);
-            for (String categoryId : item.getCategoryIds()){
-                for (String locationId : item.getLocationIds()) {
-                    for (String paymentId : item.getPaymentIds()) {
-                        for (String fulfillmentId : item.getFulfillmentIds()){
-                            ensureProviderModel(in.succinct.bpp.search.db.model.Item.class, provider, active, item, (model, becknObject) -> {
-                                model.setCategoryId(categoryMap.get(categoryId).getId());
-                                model.setProviderLocationId(providerLocationMap.get(locationId).getId());
-                                model.setPaymentId(paymentMap.get(paymentId).getId());
-                                model.setFulfillmentId(fulfillmentMap.get(fulfillmentId).getId());
-                            });
+        if (items != null) {
+            for (int j = 0; j < items.size(); j++) {
+                Item item = items.get(j);
+                if (item.getCategoryIds() == null){
+                    item.setCategoryIds(new BecknStrings());
+                }
+                if (item.getFulfillmentIds() == null){
+                    item.setFulfillmentIds(new BecknStrings());
+                }
+                if (item.getLocationIds() == null){
+                    item.setLocationIds(new BecknStrings());
+                }
+                if (item.getPaymentIds() == null){
+                    item.setPaymentIds(new BecknStrings());
+                }
+                for (String categoryId : item.getCategoryIds()) {
+                    for (String locationId : item.getLocationIds()) {
+                        for (String paymentId : item.getPaymentIds()) {
+                            for (String fulfillmentId : item.getFulfillmentIds()) {
+                                ensureProviderModel(in.succinct.bpp.search.db.model.Item.class, provider, active, item, (model, becknObject) -> {
+                                    model.setCategoryId(categoryMap.get(categoryId).getId());
+                                    model.setProviderLocationId(providerLocationMap.get(locationId).getId());
+                                    model.setPaymentId(paymentMap.get(paymentId).getId());
+                                    model.setFulfillmentId(fulfillmentMap.get(fulfillmentId).getId());
+                                });
+                            }
                         }
                     }
                 }

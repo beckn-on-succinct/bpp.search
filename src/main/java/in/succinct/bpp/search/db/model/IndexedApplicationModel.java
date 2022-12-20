@@ -1,5 +1,6 @@
 package in.succinct.bpp.search.db.model;
 
+import com.venky.swf.db.annotations.column.COLUMN_SIZE;
 import com.venky.swf.db.annotations.column.UNIQUE_KEY;
 import com.venky.swf.db.annotations.column.indexing.Index;
 import com.venky.swf.db.annotations.model.HAS_DESCRIPTION_FIELD;
@@ -24,6 +25,7 @@ public interface IndexedApplicationModel {
     public void setObjectName(String objectName);
 
 
+    @COLUMN_SIZE(1024*2)
     public String getObjectJson();
     public void setObjectJson(String objectJson);
 }
