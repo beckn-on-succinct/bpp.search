@@ -34,6 +34,7 @@ import in.succinct.bpp.search.db.model.IndexedApplicationModel;
 import in.succinct.bpp.search.db.model.Payment;
 import in.succinct.bpp.search.db.model.ProviderLocation;
 import in.succinct.bpp.shell.extensions.BppActionExtension;
+import in.succinct.bpp.shell.util.BecknUtil;
 import org.apache.lucene.search.Query;
 
 import java.util.HashSet;
@@ -135,6 +136,10 @@ public class SearchExtension extends BppActionExtension {
 
         reply.setMessage(new Message());
         Catalog catalog = new Catalog();
+        catalog.setDescriptor(new Descriptor());
+        catalog.getDescriptor().setName(BecknUtil.getSubscriberId());
+        catalog.getDescriptor().setCode(BecknUtil.getSubscriberId());
+
         reply.getMessage().setCatalog(catalog);
         Providers providers = new Providers();
         catalog.setProviders(providers);
