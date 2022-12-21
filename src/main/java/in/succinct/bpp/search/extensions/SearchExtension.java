@@ -6,6 +6,7 @@ import com.venky.swf.db.Database;
 import com.venky.swf.db.model.Model;
 import com.venky.swf.db.model.application.Application;
 import com.venky.swf.plugins.lucene.index.LuceneIndexer;
+import com.venky.swf.routing.Config;
 import com.venky.swf.sql.Conjunction;
 import com.venky.swf.sql.Expression;
 import com.venky.swf.sql.Operator;
@@ -155,6 +156,7 @@ public class SearchExtension extends BppActionExtension {
                 Provider outProvider = providers.get(dbProvider.getObjectId());
                 if (outProvider == null) {
                     outProvider = new Provider(dbProvider.getObjectJson());
+                    /* Only on Beckn 1.1
                     TagGroup tagGroup = new TagGroup();
                     outProvider.setTags(tagGroup);
                     tagGroup.setCode("Context");
@@ -169,7 +171,9 @@ public class SearchExtension extends BppActionExtension {
                     tag.setDisplay(true);
                     tag.setValue(application.getAppId());
                     outProvider.setBppId(application.getAppId());
+                    */
                     providers.add(outProvider);
+
                 }
                 Categories categories = outProvider.getCategories();
                 if (categories == null) {
