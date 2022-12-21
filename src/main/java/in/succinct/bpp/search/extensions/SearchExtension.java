@@ -58,17 +58,17 @@ public class SearchExtension extends BppActionExtension {
       //request.getContext().
         Message message  = request.getMessage();
         Intent intent = message.getIntent();
-        Descriptor intentDescriptor = intent == null ? null : intent.getDescriptor();
+        Descriptor intentDescriptor = intent == null ? null : normalizeDescriptor(intent.getDescriptor()) ;
 
         Provider provider = intent == null ? null : intent.getProvider();
-        Descriptor providerDescriptor = provider == null ? intentDescriptor : provider.getDescriptor();
+        Descriptor providerDescriptor = provider == null ? intentDescriptor : normalizeDescriptor(provider.getDescriptor());
 
 
         Item item = intent == null ? null : intent.getItem();
-        Descriptor itemDescriptor = item == null ? intentDescriptor : item.getDescriptor();
+        Descriptor itemDescriptor = item == null ? intentDescriptor : normalizeDescriptor(item.getDescriptor());
 
         Category category = intent == null ? null : intent.getCategory();
-        Descriptor categoryDescriptor = category == null ? intentDescriptor : category.getDescriptor();
+        Descriptor categoryDescriptor = category == null ? intentDescriptor : normalizeDescriptor(category.getDescriptor());
 
         StringBuilder q = new StringBuilder();
         if (providerDescriptor != null){
@@ -225,6 +225,14 @@ public class SearchExtension extends BppActionExtension {
 
 
     }
+
+    private Descriptor normalizeDescriptor(Descriptor descriptor) {
+        if (descriptor != null && descriptor.getInner().isEmpty()){
+            descriptor = null;
+        }
+        return descriptor;
+    }
+
     private <T extends Model> Cache<Long,T> createDbCache(Class<T> clazz, Set<Long> ids) {
         Cache<Long,T> cache = new Cache<Long,T>(0,0){
 
