@@ -221,7 +221,17 @@ public class SearchExtension extends BppActionExtension {
                     outProvider.setItems(items);
                 }
                 if (items.get(dbItem.getObjectId()) == null) {
-                    items.add(new Item(dbItem.getObjectJson()));
+                    Item outItem = new Item(dbItem.getObjectJson());
+                    if (outItem.getCategoryIds().size() > 0) {
+                        outItem.setCategoryId(outItem.getCategoryIds().get(0));
+                    }
+                    if (outItem.getFulfillmentIds().size() > 0) {
+                        outItem.setFulfillmentId(outItem.getFulfillmentIds().get(0));
+                    }
+                    if (outItem.getLocationIds().size() > 0) {
+                        outItem.setLocationId(outItem.getCategoryIds().get(0));
+                    }
+                    items.add(outItem);
                 }
 
             }
