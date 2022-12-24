@@ -1,12 +1,11 @@
-package in.succinct.bpp.search.extensions;
+package in.succinct.bpp.search.adaptor;
 
 import com.venky.cache.Cache;
-import com.venky.extension.Registry;
 import com.venky.swf.db.Database;
 import com.venky.swf.db.model.Model;
 import com.venky.swf.db.model.application.Application;
+import com.venky.swf.plugins.beckn.messaging.Subscriber;
 import com.venky.swf.plugins.lucene.index.LuceneIndexer;
-import com.venky.swf.routing.Config;
 import com.venky.swf.sql.Conjunction;
 import com.venky.swf.sql.Expression;
 import com.venky.swf.sql.Operator;
@@ -26,15 +25,12 @@ import in.succinct.beckn.Payments;
 import in.succinct.beckn.Provider;
 import in.succinct.beckn.Providers;
 import in.succinct.beckn.Request;
-import in.succinct.beckn.Tag;
-import in.succinct.beckn.TagGroup;
-import in.succinct.beckn.Tags;
+import in.succinct.bpp.core.adaptor.CommerceAdaptor;
+import in.succinct.bpp.core.registry.BecknRegistry;
 import in.succinct.bpp.search.db.model.Fulfillment;
 import in.succinct.bpp.search.db.model.IndexedApplicationModel;
 import in.succinct.bpp.search.db.model.Payment;
 import in.succinct.bpp.search.db.model.ProviderLocation;
-import in.succinct.bpp.shell.extensions.BppActionExtension;
-import in.succinct.bpp.shell.util.BecknUtil;
 import org.apache.lucene.search.Query;
 
 import java.util.HashSet;
@@ -42,13 +38,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class SearchExtension extends BppActionExtension {
-    static {
-        Registry.instance().registerExtension("in.succinct.bpp.shell.extension",new SearchExtension());
+public class SearchAdaptor {
+    final CommerceAdaptor adaptor;
+    public SearchAdaptor(CommerceAdaptor adaptor){
+        this.adaptor = adaptor;
+    }
+
+    public Subscriber getSubscriber() {
+        return adaptor.getSubscriber();
+    }
+
+    public BecknRegistry getRegistry() {
+        return adaptor.getRegistry();
     }
 
 
-    @Override
     public void search(Request request, Request reply) {
         try{
             _search(request,reply);
@@ -57,7 +61,7 @@ public class SearchExtension extends BppActionExtension {
         }
     }
     public void _search(Request request, Request reply) {
-      //request.getContext().
+        //request.getContext().
         Message message  = request.getMessage();
         Intent intent = message.getIntent();
         Descriptor intentDescriptor = intent == null ? null : normalizeDescriptor(intent.getDescriptor()) ;
@@ -99,7 +103,7 @@ public class SearchExtension extends BppActionExtension {
 
         Select sel = new Select().from(in.succinct.bpp.search.db.model.Item.class);
         Expression where = new Expression(sel.getPool(), Conjunction.AND);
-        where.add(new Expression(sel.getPool(),"ACTIVE",Operator.EQ,true));
+        where.add(new Expression(sel.getPool(),"ACTIVE", Operator.EQ,true));
 
 
         if (!itemIds.isEmpty()){
@@ -137,8 +141,9 @@ public class SearchExtension extends BppActionExtension {
         reply.setMessage(new Message());
         Catalog catalog = new Catalog();
         catalog.setDescriptor(new Descriptor());
-        catalog.getDescriptor().setName(BecknUtil.getSubscriberId());
-        catalog.getDescriptor().setCode(BecknUtil.getSubscriberId());
+        Subscriber subscriber = getSubscriber();
+        catalog.getDescriptor().setName(subscriber.getSubscriberId());
+        catalog.getDescriptor().setCode(subscriber.getSubscriberId());
 
         reply.getMessage().setCatalog(catalog);
         Providers providers = new Providers();
@@ -283,69 +288,4 @@ public class SearchExtension extends BppActionExtension {
         return cache;
     }
 
-    @Override
-    public void select(Request request, Request response) {
-        
-    }
-
-    @Override
-    public void init(Request request, Request reply) {
-        
-    }
-
-    @Override
-    public void confirm(Request request, Request reply) {
-        
-    }
-
-    @Override
-    public void track(Request request, Request reply) {
-        
-    }
-
-    @Override
-    public void cancel(Request request, Request reply) {
-        
-    }
-
-    @Override
-    public void update(Request request, Request reply) {
-        
-    }
-
-    @Override
-    public void status(Request request, Request reply) {
-        
-    }
-
-    @Override
-    public void rating(Request request, Request reply) {
-        
-    }
-
-
-    @Override
-    public void support(Request request, Request reply) {
-        
-    }
-
-    @Override
-    public void get_cancellation_reasons(Request request, Request reply) {
-        
-    }
-
-    @Override
-    public void get_return_reasons(Request request, Request reply) {
-        
-    }
-
-    @Override
-    public void get_rating_categories(Request request, Request reply) {
-        
-    }
-
-    @Override
-    public void get_feedback_categories(Request request, Request reply) {
-        
-    }
 }

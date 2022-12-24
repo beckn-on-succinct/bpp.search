@@ -1,6 +1,7 @@
 package in.succinct.bpp.search.db.model;
 
 import com.venky.swf.db.annotations.column.COLUMN_SIZE;
+import com.venky.swf.db.annotations.column.IS_NULLABLE;
 import com.venky.swf.db.annotations.column.UNIQUE_KEY;
 import com.venky.swf.db.annotations.column.indexing.Index;
 import com.venky.swf.db.annotations.model.HAS_DESCRIPTION_FIELD;
@@ -10,6 +11,7 @@ import com.venky.swf.db.model.application.Application;
 public interface IndexedApplicationModel {
     @UNIQUE_KEY
     @Index
+    @IS_NULLABLE(value = false)
     public Long getApplicationId();
     public void setApplicationId(Long id);
     public Application getApplication();
