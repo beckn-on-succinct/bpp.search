@@ -27,7 +27,7 @@ public interface IndexedApplicationModel {
     public void setObjectName(String objectName);
 
 
-    @COLUMN_SIZE(1024*2)
+    @COLUMN_SIZE(1024*4)
     public String getObjectJson();
     public void setObjectJson(String objectJson);
 }
