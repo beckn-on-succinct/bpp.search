@@ -38,7 +38,7 @@ public class SearchExtensionInstaller implements Extension {
             application.setSigningAlgorithm(Request.SIGNATURE_ALGO);
             application.setHashingAlgorithm("BLAKE2B-512");
             application.setSigningAlgorithmCommonName(application.getSigningAlgorithm().toLowerCase());
-            application.setHashingAlgorithmCommonName(application.getSigningAlgorithm().toLowerCase());
+            application.setHashingAlgorithmCommonName(application.getHashingAlgorithm().toLowerCase());
             application = Database.getTable(Application.class).getRefreshed(application);
             application.save();
         }
@@ -52,7 +52,7 @@ public class SearchExtensionInstaller implements Extension {
         publicKey.setKeyId(subscriber.getUniqueKeyId());
         publicKey.setValidFrom(new Timestamp(subscriber.getValidFrom().getTime()));
         publicKey.setValidUntil(new Timestamp(subscriber.getValidTo().getTime()));
-        publicKey.setPublicKey(subscriber.getSigningPublicKey());
+        publicKey.setPublicKey(Request.getPemSigningKey(subscriber.getSigningPublicKey()));
         publicKey = Database.getTable(ApplicationPublicKey.class).getRefreshed(publicKey);
         publicKey.save();
 
