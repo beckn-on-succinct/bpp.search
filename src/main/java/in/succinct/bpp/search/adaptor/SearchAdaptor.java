@@ -6,6 +6,7 @@ import com.venky.swf.db.model.Model;
 import com.venky.swf.db.model.application.Application;
 import com.venky.swf.plugins.beckn.messaging.Subscriber;
 import com.venky.swf.plugins.lucene.index.LuceneIndexer;
+import com.venky.swf.routing.Config;
 import com.venky.swf.sql.Conjunction;
 import com.venky.swf.sql.Expression;
 import com.venky.swf.sql.Operator;
@@ -97,6 +98,7 @@ public class SearchAdaptor {
         LuceneIndexer indexer = LuceneIndexer.instance(in.succinct.bpp.search.db.model.Item.class);
         Query query = indexer.constructQuery(q.toString());
         List<Long> itemIds =  indexer.findIds(query,0);
+        Config.instance().getLogger(getClass().getName()).info("SearchAdaptor: Query result size: " + itemIds.size());
         if (itemIds.isEmpty()){
             return;
         }
@@ -105,13 +107,11 @@ public class SearchAdaptor {
         Expression where = new Expression(sel.getPool(), Conjunction.AND);
         where.add(new Expression(sel.getPool(),"ACTIVE", Operator.EQ,true));
 
-
         if (!itemIds.isEmpty()){
             where.add(Expression.createExpression(sel.getPool(),"ID",Operator.IN,itemIds.toArray()));
         }
 
         List<in.succinct.bpp.search.db.model.Item> records = sel.where(where).execute(in.succinct.bpp.search.db.model.Item.class, 30);
-
         Set<Long> appIds = new HashSet<>();
         Set<Long> providerIds = new HashSet<>();
         Set<Long> providerLocationIds = new HashSet<>();
@@ -123,45 +123,44 @@ public class SearchAdaptor {
         records.forEach(i->{
             appIds.add(i.getApplicationId());
             providerIds.add(i.getProviderId());
-            providerLocationIds.add(i.getProviderLocationId());
-            fulfillmentIds.add(i.getFulfillmentId());
-            categoryIds.add(i.getCategoryId());
-            paymentIds.add(i.getPaymentId());
+            //providerLocationIds.add(i.getProviderLocationId());
+            //fulfillmentIds.add(i.getFulfillmentId());
+            //categoryIds.add(i.getCategoryId());
+            //paymentIds.add(i.getPaymentId());
             appItemMap.get(i.getApplicationId()).put(i.getId(),i);
         });
+
         Cache<Long, Application> applicationCache = createDbCache(Application.class,appIds);
         Cache<Long, Cache<Long, in.succinct.bpp.search.db.model.Provider>> appProviderMap = createAppDbCache(in.succinct.bpp.search.db.model.Provider.class,providerIds);
-        Cache<Long, Cache<Long, in.succinct.bpp.search.db.model.ProviderLocation>> appLocationMap = createAppDbCache(in.succinct.bpp.search.db.model.ProviderLocation.class,providerLocationIds);
-        Cache<Long, Cache<Long, in.succinct.bpp.search.db.model.Fulfillment>> appFulfillmentMap = createAppDbCache(in.succinct.bpp.search.db.model.Fulfillment.class,fulfillmentIds);
-        Cache<Long, Cache<Long, in.succinct.bpp.search.db.model.Category>> appCategoryMap = createAppDbCache(in.succinct.bpp.search.db.model.Category.class,categoryIds);
-        Cache<Long, Cache<Long, in.succinct.bpp.search.db.model.Payment>> appPaymentMap = createAppDbCache(in.succinct.bpp.search.db.model.Payment.class,paymentIds);
-
-
+        //Cache<Long, Cache<Long, in.succinct.bpp.search.db.model.ProviderLocation>> appLocationMap = createAppDbCache(in.succinct.bpp.search.db.model.ProviderLocation.class,providerLocationIds);
+        //Cache<Long, Cache<Long, in.succinct.bpp.search.db.model.Fulfillment>> appFulfillmentMap = createAppDbCache(in.succinct.bpp.search.db.model.Fulfillment.class,fulfillmentIds);
+        //Cache<Long, Cache<Long, in.succinct.bpp.search.db.model.Category>> appCategoryMap = createAppDbCache(in.succinct.bpp.search.db.model.Category.class,categoryIds);
+        //Cache<Long, Cache<Long, in.succinct.bpp.search.db.model.Payment>> appPaymentMap = createAppDbCache(in.succinct.bpp.search.db.model.Payment.class,paymentIds);
 
         reply.setMessage(new Message());
         Catalog catalog = new Catalog();
         catalog.setDescriptor(new Descriptor());
         Subscriber subscriber = getSubscriber();
         catalog.getDescriptor().setName(subscriber.getSubscriberId());
-        catalog.getDescriptor().setCode(subscriber.getSubscriberId());
+        //catalog.getDescriptor().setCode(subscriber.getSubscriberId());
 
         reply.getMessage().setCatalog(catalog);
         Providers providers = new Providers();
         catalog.setProviders(providers);
-
 
         for (Long appId : appIds) {
             Application application = applicationCache.get(appId);
 
             Map<Long, in.succinct.bpp.search.db.model.Item> itemMap = appItemMap.get(appId);
             for (Long itemId : itemMap.keySet()) {
+                Config.instance().getLogger(getClass().getName()).info("SearchAdaptor: Looping through result items" + itemId);
                 in.succinct.bpp.search.db.model.Item dbItem = itemMap.get(itemId);
 
                 in.succinct.bpp.search.db.model.Provider dbProvider = appProviderMap.get(appId).get(dbItem.getProviderId());
-                ProviderLocation dbProviderLocation = appLocationMap.get(appId).get(dbItem.getProviderLocationId());
-                Fulfillment dbFulfillment = appFulfillmentMap.get(appId).get(dbItem.getFulfillmentId());
-                in.succinct.bpp.search.db.model.Category dbCategory = appCategoryMap.get(appId).get(dbItem.getCategoryId());
-                Payment dbPayment = appPaymentMap.get(appId).get(dbItem.getPaymentId());
+                //ProviderLocation dbProviderLocation = appLocationMap.get(appId).get(dbItem.getProviderLocationId());
+                //Fulfillment dbFulfillment = appFulfillmentMap.get(appId).get(dbItem.getFulfillmentId());
+                //in.succinct.bpp.search.db.model.Category dbCategory = appCategoryMap.get(appId).get(dbItem.getCategoryId());
+                //Payment dbPayment = appPaymentMap.get(appId).get(dbItem.getPaymentId());
 
                 Provider outProvider = providers.get(dbProvider.getObjectId());
                 if (outProvider == null) {
@@ -185,6 +184,7 @@ public class SearchAdaptor {
                     providers.add(outProvider);
 
                 }
+                /*
                 Categories categories = outProvider.getCategories();
                 if (categories == null) {
                     categories = new Categories();
@@ -225,6 +225,7 @@ public class SearchAdaptor {
                 if (payments.get(dbPayment.getObjectId()) == null) {
                     payments.add(new in.succinct.beckn.Payment(dbPayment.getObjectJson()));
                 }
+                 */
                 Items items = outProvider.getItems();
                 if (items == null) {
                     items = new Items();
@@ -232,6 +233,7 @@ public class SearchAdaptor {
                 }
                 if (items.get(dbItem.getObjectId()) == null) {
                     Item outItem = new Item(dbItem.getObjectJson());
+                    /*
                     if (outItem.getCategoryIds().size() > 0) {
                         outItem.setCategoryId(outItem.getCategoryIds().get(0));
                     }
@@ -241,6 +243,7 @@ public class SearchAdaptor {
                     if (outItem.getLocationIds().size() > 0) {
                         outItem.setLocationId(outItem.getCategoryIds().get(0));
                     }
+                     */
                     items.add(outItem);
                 }
 

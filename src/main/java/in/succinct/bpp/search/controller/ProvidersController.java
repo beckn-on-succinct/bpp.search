@@ -7,6 +7,7 @@ import com.venky.swf.db.Database;
 import com.venky.swf.db.model.Model;
 import com.venky.swf.integration.api.HttpMethod;
 import com.venky.swf.path.Path;
+import com.venky.swf.routing.Config;
 import com.venky.swf.views.View;
 import in.succinct.beckn.BecknObject;
 import in.succinct.beckn.BecknStrings;
@@ -59,8 +60,6 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
     }
 
 
-
-
     @RequireLogin(false)
     public View ingest() throws Exception{
         ensureIntegrationMethod(HttpMethod.POST);
@@ -91,6 +90,7 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
 
     public void ensureProvider(Provider bProvider, boolean active){
 
+        Config.instance().getLogger(getClass().getName()).info("ProvidersController: items size: " + bProvider.getItems().size());
         Items items = bProvider.getItems();bProvider.rm("items");
         Categories categories = bProvider.getCategories();bProvider.rm("categories");
         Fulfillments fulfillments = bProvider.getFulfillments();bProvider.rm("fulfillments");
@@ -113,7 +113,6 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
         Map<String, in.succinct.bpp.search.db.model.ProviderLocation> providerLocationMap = createDbCache(in.succinct.bpp.search.db.model.ProviderLocation.class);
 
 
-
         if (categories != null){
             for (int j = 0 ; j < categories.size() ; j++){
                 Category category = categories.get(j);
@@ -128,6 +127,7 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
                 fulfillmentMap.put(model.getObjectId(), model);
             }
         }
+
         if (payments != null) {
             for (int j = 0; j < payments.size(); j++) {
                 Payment payment = payments.get(j);
@@ -135,6 +135,7 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
                 paymentMap.put(model.getObjectId(), model);
             }
         }
+
         if (locations != null) {
             for (int j = 0; j < locations.size(); j++) {
                 Location location = locations.get(j);
@@ -146,6 +147,7 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
         if (items != null) {
             for (int j = 0; j < items.size(); j++) {
                 Item item = items.get(j);
+                
                 if (item.getCategoryIds() == null){
                     item.setCategoryIds(new BecknStrings());
                 }
@@ -158,22 +160,32 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
                 if (item.getPaymentIds() == null){
                     item.setPaymentIds(new BecknStrings());
                 }
-                for (String categoryId : item.getCategoryIds()) {
-                    for (String locationId : item.getLocationIds()) {
-                        for (String paymentId : item.getPaymentIds()) {
-                            for (String fulfillmentId : item.getFulfillmentIds()) {
+
+                //for (String categoryId : item.getCategoryIds()) {
+                    //for (String locationId : item.getLocationIds()) {
+                        //for (String paymentId : item.getPaymentIds()) {
+                            //for (String fulfillmentId : item.getFulfillmentIds()) {
                                 ensureProviderModel(in.succinct.bpp.search.db.model.Item.class, provider, active, item, (model, becknObject) -> {
-                                    model.setCategoryId(categoryMap.get(categoryId).getId());
-                                    model.setProviderLocationId(providerLocationMap.get(locationId).getId());
-                                    model.setPaymentId(paymentMap.get(paymentId).getId());
-                                    model.setFulfillmentId(fulfillmentMap.get(fulfillmentId).getId());
+                                    //model.setCategoryId(categoryMap.get(categoryId).getId());
+                                    model.setCategoryId(1L);
+
+                                    //model.setProviderLocationId(item.get(locationId).getId());
+                                    model.setProviderLocationId(1L);
+
+                                    //model.setPaymentId(paymentMap.get(paymentId).getId());
+                                    model.setPaymentId(1L);
+                                    //model.setFulfillmentId(fulfillmentMap.get(fulfillmentId).getId());
+                                    model.setFulfillmentId(1L);
                                 });
-                            }
-                        }
-                    }
-                }
+                            //}
+                        //}
+                    //}
+                //}
+
             }
+
         }
+
 
     }
     private in.succinct.bpp.search.db.model.Payment ensurePayment(in.succinct.bpp.search.db.model.Provider provider, Payment bPayment) {
@@ -209,6 +221,7 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
         if (visitor != null){
             visitor.visit(model,becknObject);
         }
+        Config.instance().getLogger(getClass().getName()).info("ProvidersController: model saved: " + model.getRawRecord().toString());
         model.save();
         return model;
     }
