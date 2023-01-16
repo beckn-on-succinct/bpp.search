@@ -6,6 +6,7 @@ import com.venky.swf.db.model.Model;
 import com.venky.swf.db.model.application.Application;
 import com.venky.swf.plugins.beckn.messaging.Subscriber;
 import com.venky.swf.plugins.lucene.index.LuceneIndexer;
+import com.venky.swf.routing.Config;
 import com.venky.swf.sql.Conjunction;
 import com.venky.swf.sql.Expression;
 import com.venky.swf.sql.Operator;
@@ -96,6 +97,7 @@ public class SearchAdaptor {
 
         LuceneIndexer indexer = LuceneIndexer.instance(in.succinct.bpp.search.db.model.Item.class);
         Query query = indexer.constructQuery(q.toString());
+        Config.instance().getLogger(getClass().getName()).info("Searching for /items/search/" + q);
         List<Long> itemIds =  indexer.findIds(query,0);
         if (itemIds.isEmpty()){
             return;

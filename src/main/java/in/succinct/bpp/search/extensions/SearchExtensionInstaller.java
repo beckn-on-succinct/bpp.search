@@ -1,5 +1,6 @@
 package in.succinct.bpp.search.extensions;
 
+import com.venky.core.util.ObjectUtil;
 import com.venky.extension.Extension;
 import com.venky.extension.Registry;
 import com.venky.swf.db.Database;
@@ -28,11 +29,12 @@ public class SearchExtensionInstaller implements Extension {
     }
     public void installPlugin(CommerceAdaptor adaptor,Application app){
         Subscriber subscriber = adaptor.getSubscriber();
+
         // Create App for self
         Application application  = app;
         if (application == null) {
             application = Database.getTable(Application.class).newRecord();
-            application.setAppId(subscriber.getSubscriberId());
+            application.setAppId(subscriber.getAppId());
             application.setHeaders("(created) (expires) digest");
             application.setSignatureLifeMillis(5000);
             application.setSigningAlgorithm(Request.SIGNATURE_ALGO);
