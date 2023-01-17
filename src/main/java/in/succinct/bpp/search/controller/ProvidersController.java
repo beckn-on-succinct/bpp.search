@@ -11,6 +11,7 @@ import com.venky.swf.path.Path;
 import com.venky.swf.routing.Config;
 import com.venky.swf.views.View;
 import in.succinct.beckn.BecknObject;
+import in.succinct.beckn.BecknObjectWithId;
 import in.succinct.beckn.BecknStrings;
 import in.succinct.beckn.Categories;
 import in.succinct.beckn.Category;
@@ -34,6 +35,7 @@ import org.json.simple.JSONValue;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.HashMap;
 import java.util.Map;
 
 public class ProvidersController extends ModelController<in.succinct.bpp.search.db.model.Provider> {
@@ -92,6 +94,16 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
             }
         };
     }
+    private static Map<String,Class<? extends Model>> modelClassMap = new HashMap<>(){{
+        put("category_ids", in.succinct.bpp.search.db.model.Category.class);
+        put("fulfillment_ids", in.succinct.bpp.search.db.model.Fulfillment.class);
+        put("location_ids",ProviderLocation.class);
+        put("payment_ids", in.succinct.bpp.search.db.model.Payment.class);
+    }};
+    @SuppressWarnings("unchecked")
+    public <T extends Model & IndexedProviderModel> Class<T> getModelClass(String name){
+        return (Class<T>)modelClassMap.get(name);
+    }
 
     public void ensureProvider(Provider bProvider, boolean active){
 
@@ -148,18 +160,27 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
             }
         }
 
+
         if (items != null) {
             for (int j = 0; j < items.size(); j++) {
                 Item item = items.get(j);
 
                 for (String key : new String[]{"category_ids","fulfillment_ids","location_ids","payment_ids"}){
-                    BecknStrings keyValues = item.get(key);
-                    if (keyValues == null){
-                        keyValues = new BecknStrings();
-                        item.set(key,keyValues);
+                    BecknStrings refIds = item.get(key);
+                    if (refIds == null){
+                        refIds = new BecknStrings();
+                        item.set(key,refIds);
+                        String singular = key.substring(0,key.length()-1);
+                        String refObjectId = item.get(singular);
+                        if (refObjectId != null){
+                            refIds.add(refObjectId);
+                            BecknObjectWithId becknObject = new BecknObjectWithId();
+                            becknObject.setId(refObjectId);
+                            ensureProviderModel(getModelClass(key),provider,active,becknObject);
+                        }
                     }
-                    if (keyValues.size() == 0){
-                        keyValues.add(null);
+                    if (refIds.size() == 0){
+                        refIds.add(null);
                     }
                 }
                 for (String categoryId : item.getCategoryIds()) {
