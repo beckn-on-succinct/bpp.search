@@ -1,6 +1,7 @@
 package in.succinct.bpp.search.controller;
 
 import com.venky.cache.Cache;
+import com.venky.core.util.ObjectUtil;
 import com.venky.swf.controller.ModelController;
 import com.venky.swf.controller.annotations.RequireLogin;
 import com.venky.swf.db.Database;
@@ -78,10 +79,12 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
                 T c = Database.getTable(clazz).newRecord();
                 c.setApplicationId(getPath().getApplication().getId());
                 c.setObjectId(id);
-                c = Database.getTable(clazz).getRefreshed(c);
-                if (c.getRawRecord().isNewRecord()){
-                    c.setObjectName(id);
-                    c.save();
+                if (!ObjectUtil.isVoid(id)){
+                    c = Database.getTable(clazz).getRefreshed(c);
+                    if (c.getRawRecord().isNewRecord()){
+                        c.setObjectName(id);
+                        c.save();
+                    }
                 }
                 return c;
             }
@@ -147,19 +150,18 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
         if (items != null) {
             for (int j = 0; j < items.size(); j++) {
                 Item item = items.get(j);
-                
-                if (item.getCategoryIds() == null){
-                    item.setCategoryIds(new BecknStrings());
+                /*
+                for (String key : new String[]{"category_ids","fulfillment_ids","location_ids","payment_ids"}){
+                    BecknStrings keyValues = item.get(key);
+                    if (keyValues == null){
+                        keyValues = new BecknStrings();
+                    }
+                    if (keyValues.size() == 0){
+                        keyValues.add(null);
+                    }
+
                 }
-                if (item.getFulfillmentIds() == null){
-                    item.setFulfillmentIds(new BecknStrings());
-                }
-                if (item.getLocationIds() == null){
-                    item.setLocationIds(new BecknStrings());
-                }
-                if (item.getPaymentIds() == null){
-                    item.setPaymentIds(new BecknStrings());
-                }
+                 */
 
                 //for (String categoryId : item.getCategoryIds()) {
                     //for (String locationId : item.getLocationIds()) {
@@ -176,6 +178,12 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
                                     model.setPaymentId(1L);
                                     //model.setFulfillmentId(fulfillmentMap.get(fulfillmentId).getId());
                                     model.setFulfillmentId(1L);
+
+                                    //if (categoryId != null ) model.setCategoryId(categoryMap.get(categoryId).getId());
+                                    //if (locationId != null ) model.setProviderLocationId(providerLocationMap.get(locationId).getId());
+                                    //if (paymentId != null) model.setPaymentId(paymentMap.get(paymentId).getId());
+                                    //if (fulfillmentId !=null) model.setFulfillmentId(fulfillmentMap.get(fulfillmentId).getId());
+
                                 });
                             //}
                         //}
@@ -217,11 +225,12 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
         if (model instanceof IndexedActivatableModel){
             ((IndexedActivatableModel)model).setActive(active);
         }
-        model = Database.getTable(modelClass).getRefreshed(model);
         if (visitor != null){
             visitor.visit(model,becknObject);
         }
         Config.instance().getLogger(getClass().getName()).info("ProvidersController: model saved: " + model.getRawRecord().toString());
+
+        model = Database.getTable(modelClass).getRefreshed(model);
         model.save();
         return model;
     }

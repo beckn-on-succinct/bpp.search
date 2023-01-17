@@ -97,6 +97,7 @@ public class SearchAdaptor {
 
         LuceneIndexer indexer = LuceneIndexer.instance(in.succinct.bpp.search.db.model.Item.class);
         Query query = indexer.constructQuery(q.toString());
+        Config.instance().getLogger(getClass().getName()).info("Searching for /items/search/" + q);
         List<Long> itemIds =  indexer.findIds(query,0);
         Config.instance().getLogger(getClass().getName()).info("SearchAdaptor: Query result size: " + itemIds.size());
         if (itemIds.isEmpty()){
