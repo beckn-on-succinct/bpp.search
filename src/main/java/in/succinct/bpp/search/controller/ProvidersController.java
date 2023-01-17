@@ -8,6 +8,7 @@ import com.venky.swf.db.Database;
 import com.venky.swf.db.model.Model;
 import com.venky.swf.integration.api.HttpMethod;
 import com.venky.swf.path.Path;
+import com.venky.swf.routing.Config;
 import com.venky.swf.views.View;
 import in.succinct.beckn.BecknObject;
 import in.succinct.beckn.BecknStrings;
@@ -94,6 +95,7 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
 
     public void ensureProvider(Provider bProvider, boolean active){
 
+        Config.instance().getLogger(getClass().getName()).info("ProvidersController: items size: " + bProvider.getItems().size());
         Items items = bProvider.getItems();bProvider.rm("items");
         Categories categories = bProvider.getCategories();bProvider.rm("categories");
         Fulfillments fulfillments = bProvider.getFulfillments();bProvider.rm("fulfillments");
@@ -154,6 +156,7 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
                     BecknStrings keyValues = item.get(key);
                     if (keyValues == null){
                         keyValues = new BecknStrings();
+                        item.set(key,keyValues);
                     }
                     if (keyValues.size() == 0){
                         keyValues.add(null);
@@ -209,6 +212,7 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
         if (visitor != null){
             visitor.visit(model,becknObject);
         }
+        Config.instance().getLogger(getClass().getName()).info("ProvidersController: model saved: " + model.getRawRecord().toString());
         model = Database.getTable(modelClass).getRefreshed(model);
         model.save();
         return model;

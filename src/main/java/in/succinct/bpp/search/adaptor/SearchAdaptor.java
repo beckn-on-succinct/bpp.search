@@ -38,6 +38,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
 
 public class SearchAdaptor {
     final CommerceAdaptor adaptor;
@@ -58,7 +59,7 @@ public class SearchAdaptor {
         try{
             _search(request,reply);
         }catch (Exception ex){
-
+            Config.instance().getLogger(getClass().getName()).log(Level.WARNING,"Exception found", ex);
         }
     }
     public void _search(Request request, Request reply) {
@@ -99,6 +100,7 @@ public class SearchAdaptor {
         Query query = indexer.constructQuery(q.toString());
         Config.instance().getLogger(getClass().getName()).info("Searching for /items/search/" + q);
         List<Long> itemIds =  indexer.findIds(query,0);
+        Config.instance().getLogger(getClass().getName()).info("SearchAdaptor: Query result size: " + itemIds.size());
         if (itemIds.isEmpty()){
             return;
         }
@@ -157,6 +159,7 @@ public class SearchAdaptor {
 
             Map<Long, in.succinct.bpp.search.db.model.Item> itemMap = appItemMap.get(appId);
             for (Long itemId : itemMap.keySet()) {
+                Config.instance().getLogger(getClass().getName()).info("SearchAdaptor: Looping through result items" + itemId);
                 in.succinct.bpp.search.db.model.Item dbItem = itemMap.get(itemId);
 
                 in.succinct.bpp.search.db.model.Provider dbProvider = appProviderMap.get(appId).get(dbItem.getProviderId());
@@ -192,20 +195,23 @@ public class SearchAdaptor {
                     categories = new Categories();
                     outProvider.setCategories(categories);
                 }
-                Category outCategory = categories.get(dbCategory.getObjectId());
-                if (outCategory == null) {
-                    outCategory = new Category(dbCategory.getObjectJson());
-                    categories.add(outCategory);
+                if (dbCategory != null) {
+                    Category outCategory = categories.get(dbCategory.getObjectId());
+                    if (outCategory == null) {
+                        categories.add(new Category(dbCategory.getObjectJson()));
+                    }
                 }
+
                 Locations locations = outProvider.getLocations();
                 if (locations == null) {
                     locations = new Locations();
                     outProvider.setLocations(locations);
                 }
-                Location outLocation = locations.get(dbProviderLocation.getObjectId());
-                if (outLocation == null) {
-                    outLocation = new Location(dbProviderLocation.getObjectJson());
-                    locations.add(outLocation);
+                if (dbProviderLocation != null) {
+                    Location outLocation = locations.get(dbProviderLocation.getObjectId());
+                    if (outLocation == null) {
+                        locations.add(new Location(dbProviderLocation.getObjectJson()));
+                    }
                 }
 
                 Fulfillments fulfillments = outProvider.getFulfillments();
@@ -213,10 +219,11 @@ public class SearchAdaptor {
                     fulfillments = new Fulfillments();
                     outProvider.setFulfillments(fulfillments);
                 }
-                in.succinct.beckn.Fulfillment outFulfillment = fulfillments.get(dbFulfillment.getObjectId());
-                if (outFulfillment == null) {
-                    outFulfillment = new in.succinct.beckn.Fulfillment(dbFulfillment.getObjectJson());
-                    fulfillments.add(outFulfillment);
+                if (dbFulfillment != null) {
+                    in.succinct.beckn.Fulfillment outFulfillment = fulfillments.get(dbFulfillment.getObjectId());
+                    if (outFulfillment == null) {
+                        fulfillments.add(new in.succinct.beckn.Fulfillment(dbFulfillment.getObjectJson()));
+                    }
                 }
 
                 Payments payments = outProvider.getPayments();
@@ -224,8 +231,10 @@ public class SearchAdaptor {
                     payments = new Payments();
                     outProvider.setPayments(payments);
                 }
-                if (payments.get(dbPayment.getObjectId()) == null) {
-                    payments.add(new in.succinct.beckn.Payment(dbPayment.getObjectJson()));
+                if (dbPayment != null) {
+                    if (payments.get(dbPayment.getObjectId()) == null) {
+                        payments.add(new in.succinct.beckn.Payment(dbPayment.getObjectJson()));
+                    }
                 }
                 Items items = outProvider.getItems();
                 if (items == null) {
@@ -264,10 +273,14 @@ public class SearchAdaptor {
 
             @Override
             protected T getValue(Long id) {
-                return Database.getTable(clazz).get(id);
+                if (id == null){
+                    return null;
+                }else {
+                    return Database.getTable(clazz).get(id);
+                }
             }
         };
-        if (!ids.isEmpty()){
+        if (!ids.isEmpty() && !ids.contains(null)){
             Select select = new Select().from(clazz);
             select.where(new Expression(select.getPool(),"ID",Operator.IN,ids.toArray()));
             select.execute(clazz).forEach(t->cache.put(t.getId(),t));
@@ -282,7 +295,7 @@ public class SearchAdaptor {
                 return createDbCache(clazz,new HashSet<>());
             }
         };
-        if (!ids.isEmpty()){
+        if (!ids.isEmpty() && !ids.contains(null)){
             Select select = new Select().from(clazz);
             select.where(new Expression(select.getPool(),"ID",Operator.IN,ids.toArray()));
             select.execute(clazz).forEach(t->cache.get(t.getApplicationId()).put(t.getId(),t));
