@@ -27,7 +27,6 @@ import in.succinct.beckn.Provider;
 import in.succinct.beckn.Providers;
 import in.succinct.beckn.Request;
 import in.succinct.bpp.core.adaptor.CommerceAdaptor;
-import in.succinct.bpp.core.registry.BecknRegistry;
 import in.succinct.bpp.search.db.model.Fulfillment;
 import in.succinct.bpp.search.db.model.IndexedApplicationModel;
 import in.succinct.bpp.search.db.model.Payment;
@@ -48,10 +47,6 @@ public class SearchAdaptor {
 
     public Subscriber getSubscriber() {
         return adaptor.getSubscriber();
-    }
-
-    public BecknRegistry getRegistry() {
-        return adaptor.getRegistry();
     }
 
 
