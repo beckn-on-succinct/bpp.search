@@ -11,22 +11,36 @@ import com.venky.swf.sql.Conjunction;
 import com.venky.swf.sql.Expression;
 import com.venky.swf.sql.Operator;
 import com.venky.swf.sql.Select;
+import in.succinct.beckn.BreakUp;
+import in.succinct.beckn.BreakUp.BreakUpElement;
+import in.succinct.beckn.BreakUp.BreakUpElement.BreakUpCategory;
 import in.succinct.beckn.Catalog;
 import in.succinct.beckn.Categories;
 import in.succinct.beckn.Category;
+import in.succinct.beckn.Context;
 import in.succinct.beckn.Descriptor;
+import in.succinct.beckn.Fulfillment.FulfillmentType;
+import in.succinct.beckn.FulfillmentStop;
 import in.succinct.beckn.Fulfillments;
+import in.succinct.beckn.Images;
 import in.succinct.beckn.Intent;
 import in.succinct.beckn.Item;
 import in.succinct.beckn.Items;
 import in.succinct.beckn.Location;
 import in.succinct.beckn.Locations;
 import in.succinct.beckn.Message;
+import in.succinct.beckn.Order;
 import in.succinct.beckn.Payments;
+import in.succinct.beckn.Price;
 import in.succinct.beckn.Provider;
 import in.succinct.beckn.Providers;
+import in.succinct.beckn.Quantity;
+import in.succinct.beckn.QuantitySummary;
+import in.succinct.beckn.Quote;
 import in.succinct.beckn.Request;
 import in.succinct.bpp.core.adaptor.CommerceAdaptor;
+import in.succinct.bpp.core.db.model.BecknOrderMeta;
+import in.succinct.bpp.core.db.model.ProviderConfig.Serviceability;
 import in.succinct.bpp.search.db.model.Fulfillment;
 import in.succinct.bpp.search.db.model.IndexedApplicationModel;
 import in.succinct.bpp.search.db.model.Payment;
@@ -37,6 +51,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.logging.Level;
 
 public class SearchAdaptor {
@@ -49,7 +64,6 @@ public class SearchAdaptor {
         return adaptor.getSubscriber();
     }
 
-
     public void search(Request request, Request reply) {
         try{
             _search(request,reply);
@@ -57,20 +71,31 @@ public class SearchAdaptor {
             Config.instance().getLogger(getClass().getName()).log(Level.WARNING,"Exception found", ex);
         }
     }
+
     public void _search(Request request, Request reply) {
         //request.getContext().
         Message message  = request.getMessage();
         Intent intent = message.getIntent();
-        Descriptor intentDescriptor = intent == null ? null : normalizeDescriptor(intent.getDescriptor()) ;
+        in.succinct.beckn.Fulfillment intentFulfillment = intent.getFulfillment();
+        if (intentFulfillment != null){
+            if (intentFulfillment.getType() == FulfillmentType.home_delivery && !adaptor.getProviderConfig().isHomeDeliverySupported()){
+                return;
+            }else if (intentFulfillment.getType() == FulfillmentType.store_pickup && !adaptor.getProviderConfig().isStorePickupSupported()){
+                return;
+            }else if (intentFulfillment.getType() == FulfillmentType.return_to_origin && (!adaptor.getProviderConfig().isReturnPickupSupported() || !adaptor.getProviderConfig().isReturnSupported())){
+                return;
+            }
+        }
+        Descriptor intentDescriptor = normalizeDescriptor(intent.getDescriptor()) ;
 
-        Provider provider = intent == null ? null : intent.getProvider();
+        Provider provider = intent.getProvider();
         Descriptor providerDescriptor = provider == null ? intentDescriptor : normalizeDescriptor(provider.getDescriptor());
 
 
-        Item item = intent == null ? null : intent.getItem();
+        Item item = intent.getItem();
         Descriptor itemDescriptor = item == null ? intentDescriptor : normalizeDescriptor(item.getDescriptor());
 
-        Category category = intent == null ? null : intent.getCategory();
+        Category category = intent.getCategory();
         Descriptor categoryDescriptor = category == null ? intentDescriptor : normalizeDescriptor(category.getDescriptor());
 
         StringBuilder q = new StringBuilder();
@@ -141,8 +166,11 @@ public class SearchAdaptor {
         Catalog catalog = new Catalog();
         catalog.setDescriptor(new Descriptor());
         Subscriber subscriber = getSubscriber();
-        catalog.getDescriptor().setName(subscriber.getSubscriberId());
+        catalog.getDescriptor().setName(adaptor.getProviderConfig().getStoreName());
         catalog.getDescriptor().setCode(subscriber.getSubscriberId());
+        catalog.getDescriptor().setImages(new Images());
+        catalog.getDescriptor().setSymbol(adaptor.getProviderConfig().getLogo());
+        catalog.getDescriptor().getImages().add(adaptor.getProviderConfig().getLogo());
 
         reply.getMessage().setCatalog(catalog);
         Providers providers = new Providers();
@@ -217,7 +245,8 @@ public class SearchAdaptor {
                 if (dbFulfillment != null) {
                     in.succinct.beckn.Fulfillment outFulfillment = fulfillments.get(dbFulfillment.getObjectId());
                     if (outFulfillment == null) {
-                        fulfillments.add(new in.succinct.beckn.Fulfillment(dbFulfillment.getObjectJson()));
+                        outFulfillment = new in.succinct.beckn.Fulfillment(dbFulfillment.getObjectJson());
+                        fulfillments.add(outFulfillment);
                     }
                 }
 
@@ -245,9 +274,18 @@ public class SearchAdaptor {
                         outItem.setFulfillmentId(outItem.getFulfillmentIds().get(0));
                     }
                     if (outItem.getLocationIds().size() > 0) {
-                        outItem.setLocationId(outItem.getCategoryIds().get(0));
+                        outItem.setLocationId(outItem.getLocationIds().get(0));
                     }
-                    items.add(outItem);
+                    FulfillmentType outFulfillmentType = fulfillments.get(outItem.getFulfillmentId()).getType();
+                    FulfillmentType inFulfillmentType = intentFulfillment == null ? null : intentFulfillment.getType();
+                    FulfillmentStop end = intentFulfillment == null ? null : intentFulfillment.getEnd();
+
+                    if (outFulfillmentType.matches(inFulfillmentType) ) {
+                        Location storeLocation = locations.get(outItem.getLocationId());
+                        if (end == null || adaptor.getProviderConfig().getServiceability(inFulfillmentType,end,storeLocation).isServiceable()){
+                            items.add(outItem);
+                        }
+                    }
                 }
 
             }
@@ -264,7 +302,7 @@ public class SearchAdaptor {
     }
 
     private <T extends Model> Cache<Long,T> createDbCache(Class<T> clazz, Set<Long> ids) {
-        Cache<Long,T> cache = new Cache<Long,T>(0,0){
+        Cache<Long,T> cache = new Cache<>(0,0){
 
             @Override
             protected T getValue(Long id) {
@@ -284,7 +322,7 @@ public class SearchAdaptor {
     }
 
     private <T extends Model & IndexedApplicationModel> Cache<Long,Cache<Long,T>> createAppDbCache(Class<T> clazz, Set<Long> ids){
-        Cache<Long,Cache<Long,T>> cache = new Cache<Long, Cache<Long, T>>(0,0) {
+        Cache<Long,Cache<Long,T>> cache = new Cache<>(0,0) {
             @Override
             protected Cache<Long, T> getValue(Long applicationId) {
                 return createDbCache(clazz,new HashSet<>());
@@ -297,5 +335,182 @@ public class SearchAdaptor {
         }
         return cache;
     }
+
+
+    public void select( Request request, Request reply) {
+        reply.setMessage(new Message());
+        reply.getMessage().setOrder(getQuote(adaptor,request.getContext(),request.getMessage().getOrder()));
+    }
+    private Order getQuote(CommerceAdaptor adaptor, Context context, Order order) {
+
+        Order finalOrder = new Order();
+        finalOrder.setProvider(new Provider());
+        finalOrder.getProvider().setId(adaptor.getSubscriber().getSubscriberId());
+        finalOrder.setQuote(new Quote());
+        finalOrder.setItems(new Items());
+        finalOrder.setFulfillments(adaptor.getFulfillments());
+
+        in.succinct.beckn.Fulfillment home_delivery = null;
+        in.succinct.beckn.Fulfillment pickup = null;
+        for (in.succinct.beckn.Fulfillment f : finalOrder.getFulfillments()){
+            f.setId("fulfillment/"+f.getType()+"/"+context.getTransactionId());
+            if (f.getType() == FulfillmentType.home_delivery){
+                home_delivery = f;
+            }else if (f.getType() == FulfillmentType.store_pickup){
+                pickup = f;
+                pickup.setState("serviceable");
+            }
+        }
+        Locations locations = order.getProvider().getLocations();
+        Location providerLocation = null;
+        if (locations.size() == 1 ){
+            providerLocation = locations.get(0);
+            ProviderLocation dbProviderLocation = Database.getTable(ProviderLocation.class).newRecord();
+            dbProviderLocation.setObjectId(providerLocation.getId());
+            dbProviderLocation.setApplicationId(adaptor.getApplication().getId());
+            dbProviderLocation = Database.getTable(ProviderLocation.class).getRefreshed(dbProviderLocation);
+            providerLocation = new Location(dbProviderLocation.getObjectJson());
+        }
+
+
+        Serviceability serviceability = null;
+        if (home_delivery != null){
+            serviceability = adaptor.getProviderConfig().getServiceability(home_delivery.getType(),order.getFulfillment().getEnd(),providerLocation);
+            if (serviceability.isServiceable()){
+                home_delivery.setState("serviceable");
+            }else {
+                home_delivery = null;
+            }
+        }
+
+
+        Price orderPrice = new Price();
+        BreakUp breakUp = new BreakUp();
+
+
+        finalOrder.getQuote().setPrice(orderPrice);
+        finalOrder.getQuote().setBreakUp(breakUp);
+
+
+        BreakUpElement shipping_total = breakUp.createElement(BreakUpCategory.delivery,"Delivery Charges", new Price());
+        if (serviceability != null){
+            shipping_total.getPrice().setValue(serviceability.getCharges());
+        }
+        BreakUpElement tax_total = breakUp.createElement(BreakUpCategory.tax,"Tax", new Price());
+
+        breakUp.add(shipping_total);
+        breakUp.add(tax_total);
+
+
+        Items outItems = finalOrder.getItems();
+        Items inItems = order.getItems();
+
+        double deliveryTaxRate = 0 ;
+        for (int i = 0 ; i < inItems.size() ; i ++ ){
+            Item inItem = inItems.get(i);
+            Quantity quantity = inItem.get(Quantity.class,"quantity");
+
+
+            in.succinct.bpp.search.db.model.Item dbItem = getItem(adaptor,inItem.getId());
+            if (dbItem == null ){
+                throw new RuntimeException("No inventory with provider.");
+            }
+            Item outItem = new Item(dbItem.getObjectJson());
+            if (home_delivery != null) {
+                outItem.setFulfillmentId(home_delivery.getId());
+            }else if (pickup != null){
+                outItem.setFulfillmentId(pickup.getId());
+            }
+
+
+            double taxRate = dbItem.getReflector().getJdbcTypeHelper().getTypeRef(double.class).getTypeConverter().valueOf(outItem.getTags().get("tax_rate"));
+
+            double configured_price  = outItem.getPrice().getValue(); //may be discounted price
+            deliveryTaxRate = Math.max(deliveryTaxRate,taxRate);
+
+            // price *(1+r/100) = configured_price
+            // tax  = price * (r/100) = configured_price * (r/100)/(1+r/100)
+            double current_price = adaptor.isTaxIncludedInPrice() ? configured_price / (1 + taxRate/100.0): configured_price;
+            double regular_price = adaptor.isTaxIncludedInPrice() ? outItem.getPrice().getMaximumValue() / (1 + taxRate/100.0) : outItem.getPrice().getMaximumValue();
+
+            QuantitySummary outQuantity = new QuantitySummary();
+            outItem.set("quantity",outQuantity);
+            outQuantity.setSelected(quantity);
+
+            Price price = new Price();
+            price.setCurrency("INR");
+            price.setListedValue(regular_price * quantity.getCount());
+            price.setOfferedValue(current_price * quantity.getCount());
+            price.setValue(current_price * quantity.getCount());
+            outItem.setPrice(price);
+
+
+            Price tax = new Price();
+            tax.setCurrency("INR");
+            tax.setValue(taxRate/100.0 * price.getValue());
+            tax.setListedValue(taxRate/100.0 * price.getListedValue());
+            tax.setOfferedValue(taxRate/100.0 * price.getOfferedValue());
+            outItem.setTax(tax);
+
+            BreakUpElement element = breakUp.createElement(BreakUpCategory.item,outItem.getDescriptor().getName(),price);
+            element.setItem(outItem);
+            element.setItemId(outItem.getId());
+            element.setItemQuantity(quantity);
+            breakUp.add(element);
+
+
+            orderPrice.setCurrency("INR");
+            orderPrice.setListedValue(orderPrice.getListedValue() + price.getListedValue());
+            orderPrice.setOfferedValue(orderPrice.getOfferedValue() + price.getOfferedValue());
+            orderPrice.setValue(orderPrice.getValue() + price.getValue());
+
+            Price orderTaxPrice = tax_total.getPrice();
+            orderTaxPrice.setCurrency("INR");
+            orderTaxPrice.setValue(orderTaxPrice.getValue() + tax.getValue());
+            orderTaxPrice.setListedValue(orderTaxPrice.getListedValue() + tax.getListedValue());
+            orderTaxPrice.setOfferedValue(orderTaxPrice.getOfferedValue() + tax.getOfferedValue());
+
+            outItems.add(outItem);
+        }
+
+
+
+        orderPrice.setListedValue(orderPrice.getListedValue() + tax_total.getPrice().getListedValue());
+        orderPrice.setOfferedValue(orderPrice.getOfferedValue() + tax_total.getPrice().getOfferedValue());
+        orderPrice.setValue(orderPrice.getValue() + tax_total.getPrice().getValue());
+        orderPrice.setCurrency("INR");
+
+        Price orderTaxPrice = tax_total.getPrice();
+        orderTaxPrice.setCurrency("INR");
+        //Inlude shipping tax
+        orderTaxPrice.setValue(orderTaxPrice.getValue() + deliveryTaxRate/100.0 * shipping_total.getPrice().getValue());
+        orderTaxPrice.setListedValue(orderTaxPrice.getListedValue() + deliveryTaxRate/100.0 * shipping_total.getPrice().getListedValue());
+        orderTaxPrice.setOfferedValue(orderTaxPrice.getOfferedValue() + deliveryTaxRate/100.0 * shipping_total.getPrice().getOfferedValue());
+
+
+        finalOrder.getQuote().setTtl(15L*60L); //15 minutes.
+
+        BecknOrderMeta meta = Database.getTable(BecknOrderMeta.class).newRecord();
+        meta.setBecknTransactionId(context.getTransactionId());
+        meta = Database.getTable(BecknOrderMeta.class).getRefreshed(meta);
+        meta.setOrderJson(finalOrder.toString());
+        meta.save();
+
+        return finalOrder;
+    }
+
+    private in.succinct.bpp.search.db.model.Item getItem(CommerceAdaptor adaptor,String objectId) {
+
+        Select select = new Select().from(in.succinct.bpp.search.db.model.Item.class);
+        List<in.succinct.bpp.search.db.model.Item> dbItems = select.where(new Expression(select.getPool(), Conjunction.AND).
+                add(new Expression(select.getPool(), "APPLICATION_ID", Operator.EQ, adaptor.getApplication().getId())).
+                add(new Expression(select.getPool(), "OBJECT_ID", Operator.EQ, objectId))).execute(1);
+
+        return dbItems.isEmpty() ? null : dbItems.get(0);
+    }
+
+
+
+
 
 }

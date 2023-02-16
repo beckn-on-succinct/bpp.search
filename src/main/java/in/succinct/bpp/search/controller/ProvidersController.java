@@ -206,7 +206,7 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
         payment.setApplicationId(provider.getApplicationId());
         payment.setProviderId(provider.getId());
         payment.setObjectId(bPayment.getId());
-        payment.setObjectName(bPayment.getType());
+        payment.setObjectName(bPayment.getType().toString());
         payment.setObjectJson(bPayment.toString());
         payment = Database.getTable(in.succinct.bpp.search.db.model.Payment.class).getRefreshed(payment);
         payment.save();
