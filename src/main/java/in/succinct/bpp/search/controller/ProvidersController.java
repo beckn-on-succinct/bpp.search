@@ -30,6 +30,7 @@ import in.succinct.bpp.search.db.model.IndexedActivatableModel;
 import in.succinct.bpp.search.db.model.IndexedProviderModel;
 import in.succinct.bpp.search.db.model.ProviderLocation;
 import org.json.simple.JSONArray;
+import org.json.simple.JSONAware;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
 
@@ -75,7 +76,7 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
         }
         return getReturnIntegrationAdaptor().createStatusResponse(getPath(),null);
     }
-    private <T extends Model & IndexedProviderModel> Cache<String,T> createDbCache(Class<T> clazz){
+    private <T extends Model & IndexedProviderModel> Cache<String,T> createDbCache(Class<T> clazz, long providerId){
         return new Cache<String,T>(0,0){
 
             @Override
@@ -83,6 +84,7 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
                 T c = Database.getTable(clazz).newRecord();
                 c.setApplicationId(getPath().getApplication().getId());
                 c.setObjectId(id);
+                c.setProviderId(providerId);
                 if (!ObjectUtil.isVoid(id)){
                     c = Database.getTable(clazz).getRefreshed(c);
                     if (c.getRawRecord().isNewRecord()){
@@ -123,11 +125,11 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
         provider = Database.getTable(in.succinct.bpp.search.db.model.Provider.class).getRefreshed(provider);
         provider.save();
 
-        Map<String, in.succinct.bpp.search.db.model.Item> itemMap = createDbCache(in.succinct.bpp.search.db.model.Item.class);
-        Map<String, in.succinct.bpp.search.db.model.Category> categoryMap = createDbCache(in.succinct.bpp.search.db.model.Category.class);
-        Map<String, in.succinct.bpp.search.db.model.Fulfillment> fulfillmentMap = createDbCache(in.succinct.bpp.search.db.model.Fulfillment.class);
-        Map<String, in.succinct.bpp.search.db.model.Payment> paymentMap = createDbCache(in.succinct.bpp.search.db.model.Payment.class);
-        Map<String, in.succinct.bpp.search.db.model.ProviderLocation> providerLocationMap = createDbCache(in.succinct.bpp.search.db.model.ProviderLocation.class);
+        Map<String, in.succinct.bpp.search.db.model.Item> itemMap = createDbCache(in.succinct.bpp.search.db.model.Item.class,provider.getId());
+        Map<String, in.succinct.bpp.search.db.model.Category> categoryMap = createDbCache(in.succinct.bpp.search.db.model.Category.class,provider.getId());
+        Map<String, in.succinct.bpp.search.db.model.Fulfillment> fulfillmentMap = createDbCache(in.succinct.bpp.search.db.model.Fulfillment.class,provider.getId());
+        Map<String, in.succinct.bpp.search.db.model.Payment> paymentMap = createDbCache(in.succinct.bpp.search.db.model.Payment.class,provider.getId());
+        Map<String, in.succinct.bpp.search.db.model.ProviderLocation> providerLocationMap = createDbCache(in.succinct.bpp.search.db.model.ProviderLocation.class,provider.getId());
 
 
 
@@ -141,7 +143,9 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
         if (fulfillments != null) {
             for (int j = 0; j < fulfillments.size(); j++) {
                 Fulfillment fulfillment = fulfillments.get(j);
-                in.succinct.bpp.search.db.model.Fulfillment model = ensureProviderModel(in.succinct.bpp.search.db.model.Fulfillment.class, provider, active, fulfillment);
+                in.succinct.bpp.search.db.model.Fulfillment model = ensureProviderModel(in.succinct.bpp.search.db.model.Fulfillment.class, provider, active, fulfillment,(fulfillmentModel, fulfillmentBecknObject) -> {
+                    fulfillmentModel.setObjectName(fulfillmentBecknObject.getType().toString());
+                });
                 fulfillmentMap.put(model.getObjectId(), model);
             }
         }
@@ -155,7 +159,9 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
         if (locations != null) {
             for (int j = 0; j < locations.size(); j++) {
                 Location location = locations.get(j);
-                ProviderLocation model = ensureProviderModel(ProviderLocation.class, provider, active, location);
+                ProviderLocation model = ensureProviderModel(ProviderLocation.class, provider, active, location,(pl, l) -> {
+                    pl.setObjectName(l.getDescriptor().getName());
+                });
                 providerLocationMap.put(model.getObjectId(), model);
             }
         }
@@ -166,7 +172,7 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
                 Item item = items.get(j);
 
                 for (String key : new String[]{"category_ids","fulfillment_ids","location_ids","payment_ids"}){
-                    BecknStrings refIds = item.get(key);
+                    BecknStrings refIds = item.get(key) == null ? null : new BecknStrings(item.get(key));
                     if (refIds == null){
                         refIds = new BecknStrings();
                         item.set(key,refIds);

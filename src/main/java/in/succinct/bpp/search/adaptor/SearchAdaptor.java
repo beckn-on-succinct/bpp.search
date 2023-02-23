@@ -46,16 +46,19 @@ import in.succinct.bpp.search.db.model.IndexedApplicationModel;
 import in.succinct.bpp.search.db.model.Payment;
 import in.succinct.bpp.search.db.model.ProviderLocation;
 import org.apache.lucene.search.Query;
+import org.json.simple.JSONArray;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.logging.Level;
 
 public class SearchAdaptor {
     final CommerceAdaptor adaptor;
+
     public SearchAdaptor(CommerceAdaptor adaptor){
         this.adaptor = adaptor;
     }
@@ -283,6 +286,7 @@ public class SearchAdaptor {
                     if (outFulfillmentType.matches(inFulfillmentType) ) {
                         Location storeLocation = locations.get(outItem.getLocationId());
                         if (end == null || adaptor.getProviderConfig().getServiceability(inFulfillmentType,end,storeLocation).isServiceable()){
+                            outItem.setMatched(true);
                             items.add(outItem);
                         }
                     }
@@ -341,47 +345,39 @@ public class SearchAdaptor {
         reply.setMessage(new Message());
         reply.getMessage().setOrder(getQuote(adaptor,request.getContext(),request.getMessage().getOrder()));
     }
+
     private Order getQuote(CommerceAdaptor adaptor, Context context, Order order) {
+        adaptor.fixFulfillment(context,order);
+        in.succinct.beckn.Fulfillment fulfillment = order.getFulfillment();
+        FulfillmentStop end = fulfillment == null ? null : fulfillment.getEnd();
+
+        adaptor.fixLocation(order);
+        Location  providerLocation = order.getProviderLocation();
 
         Order finalOrder = new Order();
         finalOrder.setProvider(new Provider());
         finalOrder.getProvider().setId(adaptor.getSubscriber().getSubscriberId());
         finalOrder.setQuote(new Quote());
         finalOrder.setItems(new Items());
-        finalOrder.setFulfillments(adaptor.getFulfillments());
-
-        in.succinct.beckn.Fulfillment home_delivery = null;
-        in.succinct.beckn.Fulfillment pickup = null;
-        for (in.succinct.beckn.Fulfillment f : finalOrder.getFulfillments()){
-            f.setId("fulfillment/"+f.getType()+"/"+context.getTransactionId());
-            if (f.getType() == FulfillmentType.home_delivery){
-                home_delivery = f;
-            }else if (f.getType() == FulfillmentType.store_pickup){
-                pickup = f;
-                pickup.setState("serviceable");
-            }
-        }
-        Locations locations = order.getProvider().getLocations();
-        Location providerLocation = null;
-        if (locations.size() == 1 ){
-            providerLocation = locations.get(0);
-            ProviderLocation dbProviderLocation = Database.getTable(ProviderLocation.class).newRecord();
-            dbProviderLocation.setObjectId(providerLocation.getId());
-            dbProviderLocation.setApplicationId(adaptor.getApplication().getId());
-            dbProviderLocation = Database.getTable(ProviderLocation.class).getRefreshed(dbProviderLocation);
-            providerLocation = new Location(dbProviderLocation.getObjectJson());
-        }
-
+        finalOrder.getProvider().setLocations(new Locations());
+        finalOrder.setFulfillments(new Fulfillments());
 
         Serviceability serviceability = null;
-        if (home_delivery != null){
-            serviceability = adaptor.getProviderConfig().getServiceability(home_delivery.getType(),order.getFulfillment().getEnd(),providerLocation);
-            if (serviceability.isServiceable()){
-                home_delivery.setState("serviceable");
+        if (fulfillment != null){
+            finalOrder.getFulfillments().add(fulfillment);
+            finalOrder.setFulfillment(fulfillment);
+            if (end != null){
+                serviceability = adaptor.getProviderConfig().getServiceability(fulfillment.getType(),end,providerLocation);
+                if (serviceability.isServiceable()){
+                    fulfillment.setState("serviceable");
+                }
             }else {
-                home_delivery = null;
+                fulfillment.setState("serviceable");
             }
         }
+
+        finalOrder.setProviderLocation(providerLocation);
+        finalOrder.getProvider().getLocations().add(providerLocation);
 
 
         Price orderPrice = new Price();
@@ -395,10 +391,9 @@ public class SearchAdaptor {
         BreakUpElement shipping_total = breakUp.createElement(BreakUpCategory.delivery,"Delivery Charges", new Price());
         if (serviceability != null){
             shipping_total.getPrice().setValue(serviceability.getCharges());
+            breakUp.add(shipping_total);
         }
         BreakUpElement tax_total = breakUp.createElement(BreakUpCategory.tax,"Tax", new Price());
-
-        breakUp.add(shipping_total);
         breakUp.add(tax_total);
 
 
@@ -416,11 +411,8 @@ public class SearchAdaptor {
                 throw new RuntimeException("No inventory with provider.");
             }
             Item outItem = new Item(dbItem.getObjectJson());
-            if (home_delivery != null) {
-                outItem.setFulfillmentId(home_delivery.getId());
-            }else if (pickup != null){
-                outItem.setFulfillmentId(pickup.getId());
-            }
+            outItem.setFulfillmentId(finalOrder.getFulfillment() == null ? null : finalOrder.getFulfillment().getId());
+
 
 
             double taxRate = dbItem.getReflector().getJdbcTypeHelper().getTypeRef(double.class).getTypeConverter().valueOf(outItem.getTags().get("tax_rate"));
@@ -486,6 +478,7 @@ public class SearchAdaptor {
         orderTaxPrice.setValue(orderTaxPrice.getValue() + deliveryTaxRate/100.0 * shipping_total.getPrice().getValue());
         orderTaxPrice.setListedValue(orderTaxPrice.getListedValue() + deliveryTaxRate/100.0 * shipping_total.getPrice().getListedValue());
         orderTaxPrice.setOfferedValue(orderTaxPrice.getOfferedValue() + deliveryTaxRate/100.0 * shipping_total.getPrice().getOfferedValue());
+
 
 
         finalOrder.getQuote().setTtl(15L*60L); //15 minutes.
