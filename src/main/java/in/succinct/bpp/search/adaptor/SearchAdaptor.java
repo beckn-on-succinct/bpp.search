@@ -1,6 +1,7 @@
 package in.succinct.bpp.search.adaptor;
 
 import com.venky.cache.Cache;
+import com.venky.core.math.DoubleHolder;
 import com.venky.swf.db.Database;
 import com.venky.swf.db.model.Model;
 import com.venky.swf.db.model.application.Application;
@@ -25,11 +26,13 @@ import in.succinct.beckn.Fulfillments;
 import in.succinct.beckn.Images;
 import in.succinct.beckn.Intent;
 import in.succinct.beckn.Item;
+import in.succinct.beckn.ItemQuantity;
 import in.succinct.beckn.Items;
 import in.succinct.beckn.Location;
 import in.succinct.beckn.Locations;
 import in.succinct.beckn.Message;
 import in.succinct.beckn.Order;
+import in.succinct.beckn.Payment.CommissionType;
 import in.succinct.beckn.Payments;
 import in.succinct.beckn.Price;
 import in.succinct.beckn.Provider;
@@ -170,6 +173,8 @@ public class SearchAdaptor {
         catalog.setDescriptor(new Descriptor());
         Subscriber subscriber = getSubscriber();
         catalog.getDescriptor().setName(adaptor.getProviderConfig().getStoreName());
+        catalog.getDescriptor().setLongDesc(adaptor.getProviderConfig().getStoreName());
+        catalog.getDescriptor().setShortDesc(adaptor.getProviderConfig().getStoreName());
         catalog.getDescriptor().setCode(subscriber.getSubscriberId());
         catalog.getDescriptor().setImages(new Images());
         catalog.getDescriptor().setSymbol(adaptor.getProviderConfig().getLogo());
@@ -258,9 +263,19 @@ public class SearchAdaptor {
                     payments = new Payments();
                     outProvider.setPayments(payments);
                 }
+                in.succinct.beckn.Payment bapPaymentIntent = request.getMessage().getIntent().getPayment();
                 if (dbPayment != null) {
                     if (payments.get(dbPayment.getObjectId()) == null) {
-                        payments.add(new in.succinct.beckn.Payment(dbPayment.getObjectJson()));
+                        in.succinct.beckn.Payment payment = new in.succinct.beckn.Payment(dbPayment.getObjectJson());
+                        if (bapPaymentIntent != null ) {
+                            if (bapPaymentIntent.getBuyerAppFinderFeeType() == CommissionType.Percent){
+                                if (bapPaymentIntent.getBuyerAppFinderFeeAmount() > adaptor.getProviderConfig().getMaxAllowedCommissionPercent()){
+                                    throw new RuntimeException("Max commission percent exceeded");
+                                }
+                            }
+                            payment.update(payment);
+                        }
+                        payments.add(payment);
                     }
                 }
                 Items items = outProvider.getItems();
@@ -287,6 +302,16 @@ public class SearchAdaptor {
                         Location storeLocation = locations.get(outItem.getLocationId());
                         if (end == null || adaptor.getProviderConfig().getServiceability(inFulfillmentType,end,storeLocation).isServiceable()){
                             outItem.setMatched(true);
+                            outItem.setRelated(true);
+                            outItem.setRecommended(true);
+
+                            ItemQuantity itemQuantity = new ItemQuantity();
+                            Quantity available =new Quantity() ;
+                            available.setCount(adaptor.getProviderConfig().getMaxOrderQuantity()); // Ordering more than 20 is not allowed.
+                            itemQuantity.setAvailable(available);
+                            itemQuantity.setMaximum(available);
+
+                            outItem.setItemQuantity(itemQuantity);
                             items.add(outItem);
                         }
                     }
@@ -381,6 +406,7 @@ public class SearchAdaptor {
 
 
         Price orderPrice = new Price();
+        orderPrice.setCurrency("INR");
         BreakUp breakUp = new BreakUp();
 
 
@@ -389,6 +415,7 @@ public class SearchAdaptor {
 
 
         BreakUpElement shipping_total = breakUp.createElement(BreakUpCategory.delivery,"Delivery Charges", new Price());
+        shipping_total.getPrice().setCurrency(orderPrice.getCurrency());
         if (serviceability != null){
             shipping_total.getPrice().setValue(serviceability.getCharges());
             breakUp.add(shipping_total);
@@ -425,9 +452,14 @@ public class SearchAdaptor {
             double current_price = adaptor.isTaxIncludedInPrice() ? configured_price / (1 + taxRate/100.0): configured_price;
             double regular_price = adaptor.isTaxIncludedInPrice() ? outItem.getPrice().getMaximumValue() / (1 + taxRate/100.0) : outItem.getPrice().getMaximumValue();
 
-            QuantitySummary outQuantity = new QuantitySummary();
-            outItem.set("quantity",outQuantity);
+            Quantity avail = new Quantity(); avail.setCount(adaptor.getProviderConfig().getMaxOrderQuantity());
+
+            ItemQuantity outQuantity = new ItemQuantity();
             outQuantity.setSelected(quantity);
+            outQuantity.setAvailable(avail);
+            outQuantity.setMaximum(avail);
+
+            outItem.setItemQuantity(outQuantity);
 
             Price price = new Price();
             price.setCurrency("INR");
@@ -465,19 +497,19 @@ public class SearchAdaptor {
             outItems.add(outItem);
         }
 
-
-
-        orderPrice.setListedValue(orderPrice.getListedValue() + tax_total.getPrice().getListedValue());
-        orderPrice.setOfferedValue(orderPrice.getOfferedValue() + tax_total.getPrice().getOfferedValue());
-        orderPrice.setValue(orderPrice.getValue() + tax_total.getPrice().getValue());
-        orderPrice.setCurrency("INR");
-
         Price orderTaxPrice = tax_total.getPrice();
         orderTaxPrice.setCurrency("INR");
         //Inlude shipping tax
         orderTaxPrice.setValue(orderTaxPrice.getValue() + deliveryTaxRate/100.0 * shipping_total.getPrice().getValue());
         orderTaxPrice.setListedValue(orderTaxPrice.getListedValue() + deliveryTaxRate/100.0 * shipping_total.getPrice().getListedValue());
         orderTaxPrice.setOfferedValue(orderTaxPrice.getOfferedValue() + deliveryTaxRate/100.0 * shipping_total.getPrice().getOfferedValue());
+
+
+        orderPrice.setListedValue(orderPrice.getListedValue() + shipping_total.getPrice().getListedValue() + orderTaxPrice.getListedValue());
+        orderPrice.setOfferedValue(orderPrice.getOfferedValue() +shipping_total.getPrice().getOfferedValue() +  orderTaxPrice.getOfferedValue());
+        orderPrice.setValue(orderPrice.getValue() + shipping_total.getPrice().getValue() + orderTaxPrice.getValue());
+        orderPrice.setCurrency("INR");
+
 
 
 
