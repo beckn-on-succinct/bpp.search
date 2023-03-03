@@ -2,6 +2,7 @@ package in.succinct.bpp.search.adaptor;
 
 import com.venky.cache.Cache;
 import com.venky.core.math.DoubleHolder;
+import com.venky.core.util.ObjectUtil;
 import com.venky.swf.db.Database;
 import com.venky.swf.db.model.Model;
 import com.venky.swf.db.model.application.Application;
@@ -120,7 +121,9 @@ public class SearchAdaptor {
             }
             q.append(String.format(" OBJECT_NAME:%s* ",itemDescriptor.getName()));
         }
-
+        if (ObjectUtil.isVoid(q.toString())) {
+            return;
+        }
 
         LuceneIndexer indexer = LuceneIndexer.instance(in.succinct.bpp.search.db.model.Item.class);
         Query query = indexer.constructQuery(q.toString());
@@ -131,9 +134,13 @@ public class SearchAdaptor {
             return;
         }
 
+
+
         Select sel = new Select().from(in.succinct.bpp.search.db.model.Item.class);
         Expression where = new Expression(sel.getPool(), Conjunction.AND);
         where.add(new Expression(sel.getPool(),"ACTIVE", Operator.EQ,true));
+        where.add(new Expression(sel.getPool(),"APPLICATION_ID", Operator.EQ, adaptor.getApplication().getId()));
+
 
 
         if (!itemIds.isEmpty()){

@@ -27,6 +27,7 @@ import in.succinct.bpp.search.db.model.Item;
 import in.succinct.bpp.search.db.model.Provider;
 
 import java.sql.Timestamp;
+import java.util.List;
 
 public class SearchExtensionInstaller implements Extension {
     static {
@@ -93,7 +94,8 @@ public class SearchExtensionInstaller implements Extension {
     }
     public static String CATALOG_SYNC_EVENT = "catalog_index";
     private void indexItems(NetworkAdaptor networkAdaptor,CommerceAdaptor adaptor, Application application) {
-        if (Database.getTable(Provider.class).recordCount() > 0){
+        List<Provider> providerList = application.getRawRecord().getAsProxy(in.succinct.bpp.search.db.model.Application.class).getProviders();
+        if (providerList.size() > 0){
             new Select().from(Item.class).where(new Expression(ModelReflector.instance(Item.class).getPool(),"ACTIVE", Operator.EQ)).execute(Item.class).forEach(i->{
                 i.setActive(true);i.save();
             });
