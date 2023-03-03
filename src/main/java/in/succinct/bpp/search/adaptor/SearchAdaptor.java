@@ -401,10 +401,10 @@ public class SearchAdaptor {
             if (end != null){
                 serviceability = adaptor.getProviderConfig().getServiceability(fulfillment.getType(),end,providerLocation);
                 if (serviceability.isServiceable()){
-                    fulfillment.setState("serviceable");
+                    fulfillment.getState(true).getDescriptor(true).setCode("serviceable");
                 }
             }else {
-                fulfillment.setState("serviceable");
+                fulfillment.getState(true).getDescriptor(true).setCode("serviceable");
             }
         }
 
