@@ -51,6 +51,7 @@ import in.succinct.bpp.search.db.model.Payment;
 import in.succinct.bpp.search.db.model.ProviderLocation;
 import org.apache.lucene.search.Query;
 import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -81,6 +82,13 @@ public class SearchAdaptor {
 
     public void _search(Request request, Request reply) {
         //request.getContext().
+        BecknOrderMeta meta = Database.getTable(BecknOrderMeta.class).newRecord();
+        meta.setBecknTransactionId(request.getContext().getTransactionId());
+        meta = Database.getTable(BecknOrderMeta.class).getRefreshed(meta);
+        if (meta.getRawRecord().isNewRecord()){
+            meta.setOrderJson("{}");
+        }
+
         Message message  = request.getMessage();
         Intent intent = message.getIntent();
         in.succinct.beckn.Fulfillment intentFulfillment = intent.getFulfillment();
@@ -107,13 +115,22 @@ public class SearchAdaptor {
 
         StringBuilder q = new StringBuilder();
         if (providerDescriptor != null){
-            q.append(String.format(" ( PROVIDER:%s* or PROVIDER_LOCATION:%s* )",providerDescriptor.getName(),providerDescriptor.getName()));
+            if (!ObjectUtil.isVoid(providerDescriptor.getName())){
+                q.append(String.format(" ( PROVIDER:%s* or PROVIDER_LOCATION:%s* )",providerDescriptor.getName(),providerDescriptor.getName()));
+            }
+        }else if (provider != null && !ObjectUtil.isVoid(provider.getId())) {
+            q.append(String.format(" ( PROVIDER:%s* or PROVIDER_LOCATION:%s* )",provider.getId(),provider.getId()));
         }
         if (categoryDescriptor != null){
             if (q.length() > 0){
                 q.append( intentDescriptor == null ? " AND " : " OR " );
             }
             q.append(String.format(" CATEGORY:%s* ",categoryDescriptor.getName()));
+        }else if (category != null && !ObjectUtil.isVoid(category.getId())){
+            if (q.length() > 0){
+                q.append( intentDescriptor == null ? " AND " : " OR " );
+            }
+            q.append(String.format(" CATEGORY:%s* ",category.getId()));
         }
         if (itemDescriptor != null){
             if (q.length() > 0){
@@ -279,6 +296,8 @@ public class SearchAdaptor {
                                 if (bapPaymentIntent.getBuyerAppFinderFeeAmount() > adaptor.getProviderConfig().getMaxAllowedCommissionPercent()){
                                     throw new RuntimeException("Max commission percent exceeded");
                                 }
+                                meta.setBuyerAppFinderFeeAmount(bapPaymentIntent.getBuyerAppFinderFeeAmount());
+                                meta.setBuyerAppFinderFeeType(bapPaymentIntent.getBuyerAppFinderFeeType().toString());
                             }
                             payment.update(payment);
                         }
@@ -326,6 +345,8 @@ public class SearchAdaptor {
 
             }
         }
+
+        meta.save();
 
 
     }
