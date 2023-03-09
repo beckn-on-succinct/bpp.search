@@ -53,6 +53,7 @@ import org.apache.lucene.search.Query;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -138,19 +139,17 @@ public class SearchAdaptor {
             }
             q.append(String.format(" OBJECT_NAME:%s* ",itemDescriptor.getName()));
         }
-        if (ObjectUtil.isVoid(q.toString())) {
-            return;
+        List<Long> itemIds = new ArrayList<>();
+        if (!ObjectUtil.isVoid(q.toString())) {
+            LuceneIndexer indexer = LuceneIndexer.instance(in.succinct.bpp.search.db.model.Item.class);
+            Query query = indexer.constructQuery(q.toString());
+            Config.instance().getLogger(getClass().getName()).info("Searching for /items/search/" + q);
+            itemIds = indexer.findIds(query, 0);
+            Config.instance().getLogger(getClass().getName()).info("SearchAdaptor: Query result size: " + itemIds.size());
+            if (itemIds.isEmpty()) {
+                return;
+            }
         }
-
-        LuceneIndexer indexer = LuceneIndexer.instance(in.succinct.bpp.search.db.model.Item.class);
-        Query query = indexer.constructQuery(q.toString());
-        Config.instance().getLogger(getClass().getName()).info("Searching for /items/search/" + q);
-        List<Long> itemIds =  indexer.findIds(query,0);
-        Config.instance().getLogger(getClass().getName()).info("SearchAdaptor: Query result size: " + itemIds.size());
-        if (itemIds.isEmpty()){
-            return;
-        }
-
 
 
         Select sel = new Select().from(in.succinct.bpp.search.db.model.Item.class);
@@ -447,9 +446,14 @@ public class SearchAdaptor {
         if (serviceability != null){
             shipping_total.getPrice().setValue(serviceability.getCharges());
             breakUp.add(shipping_total);
+            shipping_total.setItemId(fulfillment.getId());
+
         }
         BreakUpElement tax_total = breakUp.createElement(BreakUpCategory.tax,"Tax", new Price());
         breakUp.add(tax_total);
+        if (fulfillment != null){
+            tax_total.setItemId(fulfillment.getId());
+        }
 
 
         Items outItems = finalOrder.getItems();
