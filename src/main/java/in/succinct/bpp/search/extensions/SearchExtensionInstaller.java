@@ -35,9 +35,9 @@ public class SearchExtensionInstaller implements Extension {
     }
     @Override
     public void invoke(Object... context) {
-        NetworkAdaptor networkAdaptor = (NetworkAdaptor) context[0];
-        CommerceAdaptor adaptor = (CommerceAdaptor) context[1];
-        Application application = (Application)context[2];
+        NetworkAdaptor networkAdaptor = (context.length > 0) ? (NetworkAdaptor) context[0] : null;
+        CommerceAdaptor adaptor = (context.length > 1) ? (CommerceAdaptor) context[1] :null;
+        Application application = (context.length > 2) ? (Application)context[2] : null;
         installPlugin(networkAdaptor,adaptor,application);
     }
     public void installPlugin(NetworkAdaptor networkAdaptor,CommerceAdaptor adaptor,Application app){
