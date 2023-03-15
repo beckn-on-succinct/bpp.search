@@ -28,6 +28,7 @@ import in.succinct.bpp.search.db.model.Provider;
 
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Map;
 
 public class SearchExtensionInstaller implements Extension {
     static {
@@ -64,6 +65,7 @@ public class SearchExtensionInstaller implements Extension {
         ApplicationPublicKey publicKey = Database.getTable(ApplicationPublicKey.class).newRecord();
         publicKey.setApplicationId(application.getId());
         publicKey.setPurpose(CryptoKey.PURPOSE_SIGNING);
+        publicKey.setAlgorithm(Request.SIGNATURE_ALGO);
         publicKey.setKeyId(subscriber.getUniqueKeyId());
         publicKey.setValidFrom(new Timestamp(subscriber.getValidFrom().getTime()));
         publicKey.setValidUntil(new Timestamp(subscriber.getValidTo().getTime()));
@@ -106,8 +108,9 @@ public class SearchExtensionInstaller implements Extension {
         networkAdaptor.getApiAdaptor()._search(adaptor,response);
         Providers providers = response.getMessage().getCatalog().getProviders();
 
-
+        Map<String,Object> attributes = Database.getInstance().getCurrentTransaction().getAttributes();
         TaskManager.instance().executeAsync((DbTask)()->{
+            Database.getInstance().getCurrentTransaction().setAttributes(attributes);
             Event event = Event.find(CATALOG_SYNC_EVENT);
             if (event != null ){
                 event.raise(providers);
