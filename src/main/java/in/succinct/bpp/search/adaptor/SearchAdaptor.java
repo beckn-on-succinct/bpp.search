@@ -408,7 +408,7 @@ public class SearchAdaptor {
 
         Order finalOrder = new Order();
         finalOrder.setProvider(new Provider());
-        finalOrder.getProvider().setId(adaptor.getSubscriber().getSubscriberId());
+        finalOrder.getProvider().setId(adaptor.getSubscriber().getAppId());
         finalOrder.setQuote(new Quote());
         finalOrder.setItems(new Items());
         finalOrder.getProvider().setLocations(new Locations());
