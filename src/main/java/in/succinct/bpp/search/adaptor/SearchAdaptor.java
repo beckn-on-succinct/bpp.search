@@ -115,14 +115,14 @@ public class SearchAdaptor {
         Descriptor categoryDescriptor = category == null ? intentDescriptor : normalizeDescriptor(category.getDescriptor());
 
         StringBuilder q = new StringBuilder();
-        if (providerDescriptor != null){
-            if (!ObjectUtil.isVoid(providerDescriptor.getName())){
-                q.append(String.format(" ( PROVIDER:%s* or PROVIDER_LOCATION:%s* )",providerDescriptor.getName(),providerDescriptor.getName()));
-            }
+        if (providerDescriptor != null && !ObjectUtil.isVoid(providerDescriptor.getName())){
+            providerDescriptor.setName(providerDescriptor.getName().trim());
+            q.append(String.format(" ( PROVIDER:%s* or PROVIDER_LOCATION:%s* )",providerDescriptor.getName(),providerDescriptor.getName()));
         }else if (provider != null && !ObjectUtil.isVoid(provider.getId())) {
             q.append(String.format(" ( PROVIDER:%s* or PROVIDER_LOCATION:%s* )",provider.getId(),provider.getId()));
         }
-        if (categoryDescriptor != null){
+        if (categoryDescriptor != null && !ObjectUtil.isVoid(categoryDescriptor.getName())){
+            categoryDescriptor.setName(categoryDescriptor.getName().trim());
             if (q.length() > 0){
                 q.append( intentDescriptor == null ? " AND " : " OR " );
             }
@@ -131,9 +131,11 @@ public class SearchAdaptor {
             if (q.length() > 0){
                 q.append( intentDescriptor == null ? " AND " : " OR " );
             }
+            category.setId(category.getId().trim());
             q.append(String.format(" CATEGORY:%s* ",category.getId()));
         }
-        if (itemDescriptor != null){
+        if (itemDescriptor != null && !ObjectUtil.isVoid(itemDescriptor.getName())){
+            itemDescriptor.setName(itemDescriptor.getName().trim());
             if (q.length() > 0){
                 q.append( intentDescriptor == null ? " AND " : " OR " );
             }
