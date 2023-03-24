@@ -1,7 +1,6 @@
 package in.succinct.bpp.search.adaptor;
 
 import com.venky.cache.Cache;
-import com.venky.core.math.DoubleHolder;
 import com.venky.core.util.ObjectUtil;
 import com.venky.swf.db.Database;
 import com.venky.swf.db.model.Model;
@@ -39,9 +38,10 @@ import in.succinct.beckn.Price;
 import in.succinct.beckn.Provider;
 import in.succinct.beckn.Providers;
 import in.succinct.beckn.Quantity;
-import in.succinct.beckn.QuantitySummary;
 import in.succinct.beckn.Quote;
 import in.succinct.beckn.Request;
+import in.succinct.beckn.SellerException;
+import in.succinct.beckn.SellerException.GenericBusinessError;
 import in.succinct.bpp.core.adaptor.CommerceAdaptor;
 import in.succinct.bpp.core.db.model.BecknOrderMeta;
 import in.succinct.bpp.core.db.model.ProviderConfig.Serviceability;
@@ -50,13 +50,9 @@ import in.succinct.bpp.search.db.model.IndexedApplicationModel;
 import in.succinct.bpp.search.db.model.Payment;
 import in.succinct.bpp.search.db.model.ProviderLocation;
 import org.apache.lucene.search.Query;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -83,12 +79,6 @@ public class SearchAdaptor {
 
     public void _search(Request request, Request reply) {
         //request.getContext().
-        BecknOrderMeta meta = Database.getTable(BecknOrderMeta.class).newRecord();
-        meta.setBecknTransactionId(request.getContext().getTransactionId());
-        meta = Database.getTable(BecknOrderMeta.class).getRefreshed(meta);
-        if (meta.getRawRecord().isNewRecord()){
-            meta.setOrderJson("{}");
-        }
 
         Message message  = request.getMessage();
         Intent intent = message.getIntent();
@@ -295,12 +285,13 @@ public class SearchAdaptor {
                         if (bapPaymentIntent != null ) {
                             if (bapPaymentIntent.getBuyerAppFinderFeeType() == CommissionType.Percent){
                                 if (bapPaymentIntent.getBuyerAppFinderFeeAmount() > adaptor.getProviderConfig().getMaxAllowedCommissionPercent()){
-                                    throw new RuntimeException("Max commission percent exceeded");
+                                    throw new GenericBusinessError("Max commission percent exceeded");
                                 }
+                                BecknOrderMeta meta = adaptor.getOrderMeta(request.getContext().getTransactionId());
                                 meta.setBuyerAppFinderFeeAmount(bapPaymentIntent.getBuyerAppFinderFeeAmount());
                                 meta.setBuyerAppFinderFeeType(bapPaymentIntent.getBuyerAppFinderFeeType().toString());
                             }
-                            payment.update(payment);
+                            payment.update(bapPaymentIntent); //need toupdate from the intent.!
                         }
                         payments.add(payment);
                     }
@@ -346,10 +337,6 @@ public class SearchAdaptor {
 
             }
         }
-
-        meta.save();
-
-
     }
 
     private Descriptor normalizeDescriptor(Descriptor descriptor) {
@@ -469,7 +456,7 @@ public class SearchAdaptor {
 
             in.succinct.bpp.search.db.model.Item dbItem = getItem(adaptor,inItem.getId());
             if (dbItem == null ){
-                throw new RuntimeException("No inventory with provider.");
+                throw new SellerException.ItemNotFound();
             }
             Item outItem = new Item(dbItem.getObjectJson());
             outItem.setFulfillmentId(finalOrder.getFulfillment() == null ? null : finalOrder.getFulfillment().getId());
@@ -548,12 +535,6 @@ public class SearchAdaptor {
 
 
         finalOrder.getQuote().setTtl(15L*60L); //15 minutes.
-
-        BecknOrderMeta meta = Database.getTable(BecknOrderMeta.class).newRecord();
-        meta.setBecknTransactionId(context.getTransactionId());
-        meta = Database.getTable(BecknOrderMeta.class).getRefreshed(meta);
-        meta.setOrderJson(finalOrder.toString());
-        meta.save();
 
         return finalOrder;
     }
