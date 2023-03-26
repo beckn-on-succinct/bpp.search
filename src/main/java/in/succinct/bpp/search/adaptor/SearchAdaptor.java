@@ -43,7 +43,6 @@ import in.succinct.beckn.Request;
 import in.succinct.beckn.SellerException;
 import in.succinct.beckn.SellerException.GenericBusinessError;
 import in.succinct.bpp.core.adaptor.CommerceAdaptor;
-import in.succinct.bpp.core.db.model.BecknOrderMeta;
 import in.succinct.bpp.core.db.model.ProviderConfig.Serviceability;
 import in.succinct.bpp.search.db.model.Fulfillment;
 import in.succinct.bpp.search.db.model.IndexedApplicationModel;
@@ -287,9 +286,6 @@ public class SearchAdaptor {
                                 if (bapPaymentIntent.getBuyerAppFinderFeeAmount() > adaptor.getProviderConfig().getMaxAllowedCommissionPercent()){
                                     throw new GenericBusinessError("Max commission percent exceeded");
                                 }
-                                BecknOrderMeta meta = adaptor.getOrderMeta(request.getContext().getTransactionId());
-                                meta.setBuyerAppFinderFeeAmount(bapPaymentIntent.getBuyerAppFinderFeeAmount());
-                                meta.setBuyerAppFinderFeeType(bapPaymentIntent.getBuyerAppFinderFeeType().toString());
                             }
                             payment.update(bapPaymentIntent); //need toupdate from the intent.!
                         }
