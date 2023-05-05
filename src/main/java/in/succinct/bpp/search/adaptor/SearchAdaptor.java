@@ -42,6 +42,7 @@ import in.succinct.beckn.Quote;
 import in.succinct.beckn.Request;
 import in.succinct.beckn.SellerException;
 import in.succinct.beckn.SellerException.GenericBusinessError;
+import in.succinct.bpp.core.adaptor.AbstractCommerceAdaptor;
 import in.succinct.bpp.core.adaptor.CommerceAdaptor;
 import in.succinct.bpp.core.db.model.ProviderConfig.Serviceability;
 import in.succinct.bpp.search.db.model.Fulfillment;
@@ -57,37 +58,32 @@ import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 
-public class SearchAdaptor {
-    final CommerceAdaptor adaptor;
+public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
 
-    public SearchAdaptor(CommerceAdaptor adaptor){
-        this.adaptor = adaptor;
-    }
-
-    public Subscriber getSubscriber() {
-        return adaptor.getSubscriber();
+    public SearchAdaptor(Map<String, String> configuration, Subscriber subscriber) {
+        super(configuration, subscriber);
     }
 
     public void search(Request request, Request reply) {
         try{
-            _search(request,reply);
+            indexed_search(request,reply);
         }catch (Exception ex){
             Config.instance().getLogger(getClass().getName()).log(Level.WARNING,"Exception found", ex);
         }
     }
 
-    public void _search(Request request, Request reply) {
+    private void indexed_search(Request request, Request reply) {
         //request.getContext().
 
         Message message  = request.getMessage();
         Intent intent = message.getIntent();
         in.succinct.beckn.Fulfillment intentFulfillment = intent.getFulfillment();
         if (intentFulfillment != null){
-            if (intentFulfillment.getType() == FulfillmentType.home_delivery && !adaptor.getProviderConfig().isHomeDeliverySupported()){
+            if (intentFulfillment.getType() == FulfillmentType.home_delivery && !getProviderConfig().isHomeDeliverySupported()){
                 return;
-            }else if (intentFulfillment.getType() == FulfillmentType.store_pickup && !adaptor.getProviderConfig().isStorePickupSupported()){
+            }else if (intentFulfillment.getType() == FulfillmentType.store_pickup && !getProviderConfig().isStorePickupSupported()){
                 return;
-            }else if (intentFulfillment.getType() == FulfillmentType.return_to_origin && (!adaptor.getProviderConfig().isReturnPickupSupported() || !adaptor.getProviderConfig().isReturnSupported())){
+            }else if (intentFulfillment.getType() == FulfillmentType.return_to_origin && (!getProviderConfig().isReturnPickupSupported() || !getProviderConfig().isReturnSupported())){
                 return;
             }
         }
@@ -146,7 +142,7 @@ public class SearchAdaptor {
         Select sel = new Select().from(in.succinct.bpp.search.db.model.Item.class);
         Expression where = new Expression(sel.getPool(), Conjunction.AND);
         where.add(new Expression(sel.getPool(),"ACTIVE", Operator.EQ,true));
-        where.add(new Expression(sel.getPool(),"APPLICATION_ID", Operator.EQ, adaptor.getApplication().getId()));
+        where.add(new Expression(sel.getPool(),"APPLICATION_ID", Operator.EQ, getApplication().getId()));
 
 
 
@@ -186,13 +182,13 @@ public class SearchAdaptor {
         Catalog catalog = new Catalog();
         catalog.setDescriptor(new Descriptor());
         Subscriber subscriber = getSubscriber();
-        catalog.getDescriptor().setName(adaptor.getProviderConfig().getStoreName());
-        catalog.getDescriptor().setLongDesc(adaptor.getProviderConfig().getStoreName());
-        catalog.getDescriptor().setShortDesc(adaptor.getProviderConfig().getStoreName());
+        catalog.getDescriptor().setName(getProviderConfig().getStoreName());
+        catalog.getDescriptor().setLongDesc(getProviderConfig().getStoreName());
+        catalog.getDescriptor().setShortDesc(getProviderConfig().getStoreName());
         catalog.getDescriptor().setCode(subscriber.getSubscriberId());
         catalog.getDescriptor().setImages(new Images());
-        catalog.getDescriptor().setSymbol(adaptor.getProviderConfig().getLogo());
-        catalog.getDescriptor().getImages().add(adaptor.getProviderConfig().getLogo());
+        catalog.getDescriptor().setSymbol(getProviderConfig().getLogo());
+        catalog.getDescriptor().getImages().add(getProviderConfig().getLogo());
 
         reply.getMessage().setCatalog(catalog);
         Providers providers = new Providers();
@@ -283,7 +279,7 @@ public class SearchAdaptor {
                         in.succinct.beckn.Payment payment = new in.succinct.beckn.Payment(dbPayment.getObjectJson());
                         if (bapPaymentIntent != null ) {
                             if (bapPaymentIntent.getBuyerAppFinderFeeType() == CommissionType.Percent){
-                                if (bapPaymentIntent.getBuyerAppFinderFeeAmount() > adaptor.getProviderConfig().getMaxAllowedCommissionPercent()){
+                                if (bapPaymentIntent.getBuyerAppFinderFeeAmount() > getProviderConfig().getMaxAllowedCommissionPercent()){
                                     throw new GenericBusinessError("Max commission percent exceeded");
                                 }
                             }
@@ -314,14 +310,14 @@ public class SearchAdaptor {
 
                     if (outFulfillmentType.matches(inFulfillmentType) ) {
                         Location storeLocation = locations.get(outItem.getLocationId());
-                        if (end == null || adaptor.getProviderConfig().getServiceability(inFulfillmentType,end,storeLocation).isServiceable()){
+                        if (end == null || getProviderConfig().getServiceability(inFulfillmentType,end,storeLocation).isServiceable()){
                             outItem.setMatched(true);
                             outItem.setRelated(true);
                             outItem.setRecommended(true);
 
                             ItemQuantity itemQuantity = new ItemQuantity();
                             Quantity available =new Quantity() ;
-                            available.setCount(adaptor.getProviderConfig().getMaxOrderQuantity()); // Ordering more than 20 is not allowed.
+                            available.setCount(getProviderConfig().getMaxOrderQuantity()); // Ordering more than 20 is not allowed.
                             itemQuantity.setAvailable(available);
                             itemQuantity.setMaximum(available);
 
@@ -380,20 +376,20 @@ public class SearchAdaptor {
 
     public void select( Request request, Request reply) {
         reply.setMessage(new Message());
-        reply.getMessage().setOrder(getQuote(adaptor,request.getContext(),request.getMessage().getOrder()));
+        reply.getMessage().setOrder(getQuote(request.getContext(),request.getMessage().getOrder()));
     }
 
-    private Order getQuote(CommerceAdaptor adaptor, Context context, Order order) {
-        adaptor.fixFulfillment(context,order);
+    private Order getQuote(Context context, Order order) {
+        fixFulfillment(context,order);
         in.succinct.beckn.Fulfillment fulfillment = order.getFulfillment();
         FulfillmentStop end = fulfillment == null ? null : fulfillment.getEnd();
 
-        adaptor.fixLocation(order);
+        fixLocation(order);
         Location  providerLocation = order.getProviderLocation();
 
         Order finalOrder = new Order();
         finalOrder.setProvider(new Provider());
-        finalOrder.getProvider().setId(adaptor.getSubscriber().getAppId());
+        finalOrder.getProvider().setId(getSubscriber().getAppId());
         finalOrder.setQuote(new Quote());
         finalOrder.setItems(new Items());
         finalOrder.getProvider().setLocations(new Locations());
@@ -404,7 +400,7 @@ public class SearchAdaptor {
             finalOrder.getFulfillments().add(fulfillment);
             finalOrder.setFulfillment(fulfillment);
             if (end != null){
-                serviceability = adaptor.getProviderConfig().getServiceability(fulfillment.getType(),end,providerLocation);
+                serviceability = getProviderConfig().getServiceability(fulfillment.getType(),end,providerLocation);
                 if (serviceability.isServiceable()){
                     fulfillment.getState(true).getDescriptor(true).setCode("serviceable");
                 }
@@ -426,31 +422,35 @@ public class SearchAdaptor {
         finalOrder.getQuote().setBreakUp(breakUp);
 
 
+        double deliveryTaxRate = 0.18 ;
         BreakUpElement shipping_total = breakUp.createElement(BreakUpCategory.delivery,"Delivery Charges", new Price());
         shipping_total.getPrice().setCurrency(orderPrice.getCurrency());
         if (serviceability != null){
             shipping_total.getPrice().setValue(serviceability.getCharges());
+            shipping_total.getPrice().setListedValue(serviceability.getCharges());
+            shipping_total.getPrice().setOfferedValue(serviceability.getCharges());
             breakUp.add(shipping_total);
             shipping_total.setItemId(fulfillment.getId());
 
         }
         BreakUpElement tax_total = breakUp.createElement(BreakUpCategory.tax,"Tax", new Price());
-        breakUp.add(tax_total);
-        if (fulfillment != null){
-            tax_total.setItemId(fulfillment.getId());
+        if (!isTaxIncludedInPrice()) {
+            breakUp.add(tax_total);
+            if (fulfillment != null){
+                tax_total.setItemId(fulfillment.getId());
+            }
         }
 
 
         Items outItems = finalOrder.getItems();
         Items inItems = order.getItems();
 
-        double deliveryTaxRate = 0 ;
         for (int i = 0 ; i < inItems.size() ; i ++ ){
             Item inItem = inItems.get(i);
             Quantity quantity = inItem.get(Quantity.class,"quantity");
 
 
-            in.succinct.bpp.search.db.model.Item dbItem = getItem(adaptor,inItem.getId());
+            in.succinct.bpp.search.db.model.Item dbItem = getItem(inItem.getId());
             if (dbItem == null ){
                 throw new SellerException.ItemNotFound();
             }
@@ -459,17 +459,16 @@ public class SearchAdaptor {
 
 
 
-            double taxRate = dbItem.getReflector().getJdbcTypeHelper().getTypeRef(double.class).getTypeConverter().valueOf(outItem.getTags().get("tax_rate"));
+            double taxRate = dbItem.getReflector().getJdbcTypeHelper().getTypeRef(double.class).getTypeConverter().valueOf(outItem.getTags().get("tax_rate"))/100.0;
 
             double configured_price  = outItem.getPrice().getValue(); //may be discounted price
-            deliveryTaxRate = Math.max(deliveryTaxRate,taxRate);
 
             // price *(1+r/100) = configured_price
             // tax  = price * (r/100) = configured_price * (r/100)/(1+r/100)
-            double current_price = adaptor.isTaxIncludedInPrice() ? configured_price / (1 + taxRate/100.0): configured_price;
-            double regular_price = adaptor.isTaxIncludedInPrice() ? outItem.getPrice().getMaximumValue() / (1 + taxRate/100.0) : outItem.getPrice().getMaximumValue();
+            double current_price = configured_price ; // isTaxIncludedInPrice() ? configured_price / (1 + taxRate/100.0): configured_price;
+            double regular_price = outItem.getPrice().getMaximumValue() ; //isTaxIncludedInPrice() ? outItem.getPrice().getMaximumValue() / (1 + taxRate/100.0) : outItem.getPrice().getMaximumValue();
 
-            Quantity avail = new Quantity(); avail.setCount(adaptor.getProviderConfig().getMaxOrderQuantity());
+            Quantity avail = new Quantity(); avail.setCount(getProviderConfig().getMaxOrderQuantity());
 
             ItemQuantity outQuantity = new ItemQuantity();
             outQuantity.setSelected(quantity);
@@ -488,10 +487,13 @@ public class SearchAdaptor {
 
             Price tax = new Price();
             tax.setCurrency("INR");
-            tax.setValue(taxRate/100.0 * price.getValue());
-            tax.setListedValue(taxRate/100.0 * price.getListedValue());
-            tax.setOfferedValue(taxRate/100.0 * price.getOfferedValue());
-            outItem.setTax(tax);
+            double factor = isTaxIncludedInPrice() ? (taxRate/(1 + taxRate)) : taxRate ;
+            tax.setValue(factor * price.getValue());
+            tax.setListedValue(factor  * price.getListedValue());
+            tax.setOfferedValue(factor * price.getOfferedValue());
+            if (!isTaxIncludedInPrice()) {
+                outItem.setTax(tax);
+            }
 
             BreakUpElement element = breakUp.createElement(BreakUpCategory.item,outItem.getDescriptor().getName(),price);
             element.setItem(outItem);
@@ -517,14 +519,15 @@ public class SearchAdaptor {
         Price orderTaxPrice = tax_total.getPrice();
         orderTaxPrice.setCurrency("INR");
         //Inlude shipping tax
-        orderTaxPrice.setValue(orderTaxPrice.getValue() + deliveryTaxRate/100.0 * shipping_total.getPrice().getValue());
-        orderTaxPrice.setListedValue(orderTaxPrice.getListedValue() + deliveryTaxRate/100.0 * shipping_total.getPrice().getListedValue());
-        orderTaxPrice.setOfferedValue(orderTaxPrice.getOfferedValue() + deliveryTaxRate/100.0 * shipping_total.getPrice().getOfferedValue());
+        double factor = isTaxIncludedInPrice() ? deliveryTaxRate/ (1 + deliveryTaxRate) : deliveryTaxRate;
+        orderTaxPrice.setValue(orderTaxPrice.getValue() + factor * shipping_total.getPrice().getValue());
+        orderTaxPrice.setListedValue(orderTaxPrice.getListedValue() + factor * shipping_total.getPrice().getListedValue());
+        orderTaxPrice.setOfferedValue(orderTaxPrice.getOfferedValue() + factor * shipping_total.getPrice().getOfferedValue());
 
 
-        orderPrice.setListedValue(orderPrice.getListedValue() + shipping_total.getPrice().getListedValue() + orderTaxPrice.getListedValue());
-        orderPrice.setOfferedValue(orderPrice.getOfferedValue() +shipping_total.getPrice().getOfferedValue() +  orderTaxPrice.getOfferedValue());
-        orderPrice.setValue(orderPrice.getValue() + shipping_total.getPrice().getValue() + orderTaxPrice.getValue());
+        orderPrice.setListedValue(orderPrice.getListedValue() + shipping_total.getPrice().getListedValue() + (isTaxIncludedInPrice() ? 0 : orderTaxPrice.getListedValue()));
+        orderPrice.setOfferedValue(orderPrice.getOfferedValue() +shipping_total.getPrice().getOfferedValue() +  (isTaxIncludedInPrice() ? 0 : orderTaxPrice.getOfferedValue()));
+        orderPrice.setValue(orderPrice.getValue() + shipping_total.getPrice().getValue()  + (isTaxIncludedInPrice() ? 0 : orderTaxPrice.getValue()));
         orderPrice.setCurrency("INR");
 
 
@@ -535,11 +538,11 @@ public class SearchAdaptor {
         return finalOrder;
     }
 
-    private in.succinct.bpp.search.db.model.Item getItem(CommerceAdaptor adaptor,String objectId) {
+    private in.succinct.bpp.search.db.model.Item getItem(String objectId) {
 
         Select select = new Select().from(in.succinct.bpp.search.db.model.Item.class);
         List<in.succinct.bpp.search.db.model.Item> dbItems = select.where(new Expression(select.getPool(), Conjunction.AND).
-                add(new Expression(select.getPool(), "APPLICATION_ID", Operator.EQ, adaptor.getApplication().getId())).
+                add(new Expression(select.getPool(), "APPLICATION_ID", Operator.EQ, getApplication().getId())).
                 add(new Expression(select.getPool(), "OBJECT_ID", Operator.EQ, objectId))).execute(1);
 
         return dbItems.isEmpty() ? null : dbItems.get(0);

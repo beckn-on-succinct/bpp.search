@@ -2,6 +2,7 @@ package in.succinct.bpp.search.controller;
 
 import com.venky.cache.Cache;
 import com.venky.core.util.ObjectUtil;
+import com.venky.extension.Registry;
 import com.venky.swf.controller.ModelController;
 import com.venky.swf.controller.annotations.RequireLogin;
 import com.venky.swf.db.Database;
@@ -26,6 +27,7 @@ import in.succinct.beckn.Payment;
 import in.succinct.beckn.Payments;
 import in.succinct.beckn.Provider;
 import in.succinct.beckn.Providers;
+import in.succinct.bpp.search.db.model.Application;
 import in.succinct.bpp.search.db.model.IndexedActivatableModel;
 import in.succinct.bpp.search.db.model.IndexedProviderModel;
 import in.succinct.bpp.search.db.model.ProviderLocation;
