@@ -11,6 +11,7 @@ import com.venky.swf.db.model.application.Event;
 import com.venky.swf.db.model.application.api.EndPoint;
 import com.venky.swf.db.model.application.api.EventHandler;
 import com.venky.swf.db.model.reflection.ModelReflector;
+import com.venky.swf.path._IPath;
 import com.venky.swf.plugins.background.core.DbTask;
 import com.venky.swf.plugins.background.core.TaskManager;
 import com.venky.swf.plugins.beckn.messaging.Subscriber;
@@ -108,9 +109,14 @@ public class SearchExtensionInstaller implements Extension {
         networkAdaptor.getApiAdaptor()._search(adaptor,response);
         Providers providers = response.getMessage().getCatalog().getProviders();
 
+
         Map<String,Object> attributes = Database.getInstance().getCurrentTransaction().getAttributes();
+        Map<String,Object> context = Database.getInstance().getContext();
+
         TaskManager.instance().executeAsync((DbTask)()->{
             Database.getInstance().getCurrentTransaction().setAttributes(attributes);
+            context.remove(_IPath.class.getName());
+            Database.getInstance().setContext(context);
             Event event = Event.find(CATALOG_SYNC_EVENT);
             if (event != null ){
                 event.raise(providers);
