@@ -5,7 +5,6 @@ import com.venky.extension.Registry;
 import com.venky.swf.db.Database;
 import com.venky.swf.db.annotations.column.ui.mimes.MimeType;
 import com.venky.swf.db.model.CryptoKey;
-import com.venky.swf.db.model.application.Application;
 import com.venky.swf.db.model.application.ApplicationPublicKey;
 import com.venky.swf.db.model.application.Event;
 import com.venky.swf.db.model.application.api.EndPoint;
@@ -15,15 +14,15 @@ import com.venky.swf.path._IPath;
 import com.venky.swf.plugins.background.core.DbTask;
 import com.venky.swf.plugins.background.core.TaskManager;
 import com.venky.swf.plugins.beckn.messaging.Subscriber;
+import com.venky.swf.plugins.collab.db.model.participants.admin.Company;
 import com.venky.swf.sql.Expression;
 import com.venky.swf.sql.Operator;
 import com.venky.swf.sql.Select;
-import in.succinct.beckn.Intent;
-import in.succinct.beckn.Message;
 import in.succinct.beckn.Providers;
 import in.succinct.beckn.Request;
 import in.succinct.bpp.core.adaptor.CommerceAdaptor;
 import in.succinct.bpp.core.adaptor.NetworkAdaptor;
+import in.succinct.bpp.search.db.model.Application;
 import in.succinct.bpp.search.db.model.Item;
 import in.succinct.bpp.search.db.model.Provider;
 
@@ -48,8 +47,11 @@ public class SearchExtensionInstaller implements Extension {
         // Create App for self
         Application application  = app;
         if (application == null) {
+            Company company = adaptor.createCompany(adaptor.getProviderConfig().getOrganization());
+
             application = Database.getTable(Application.class).newRecord();
             application.setAppId(subscriber.getAppId());
+            application.setCompanyId(company.getId());
             application.setHeaders("(created) (expires) digest");
             application.setSignatureLifeMillis(5000);
             application.setSigningAlgorithm(Request.SIGNATURE_ALGO);
