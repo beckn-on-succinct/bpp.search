@@ -42,6 +42,7 @@ import in.succinct.beckn.Quote;
 import in.succinct.beckn.Request;
 import in.succinct.beckn.SellerException;
 import in.succinct.beckn.SellerException.GenericBusinessError;
+import in.succinct.beckn.Time;
 import in.succinct.bpp.core.adaptor.AbstractCommerceAdaptor;
 import in.succinct.bpp.core.adaptor.CommerceAdaptor;
 import in.succinct.bpp.core.db.model.ProviderConfig.Serviceability;
@@ -74,6 +75,22 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
 
     private void indexed_search(Request request, Request reply) {
         //request.getContext().
+        reply.setMessage(new Message());
+        Catalog catalog = new Catalog();
+        catalog.setDescriptor(new Descriptor());
+        Subscriber subscriber = getSubscriber();
+        catalog.getDescriptor().setName(getProviderConfig().getStoreName());
+        catalog.getDescriptor().setLongDesc(getProviderConfig().getStoreName());
+        catalog.getDescriptor().setShortDesc(getProviderConfig().getStoreName());
+        catalog.getDescriptor().setCode(subscriber.getSubscriberId());
+        catalog.getDescriptor().setImages(new Images());
+        catalog.getDescriptor().setSymbol(getProviderConfig().getLogo());
+        catalog.getDescriptor().getImages().add(getProviderConfig().getLogo());
+
+        reply.getMessage().setCatalog(catalog);
+        Providers providers = new Providers();
+        catalog.setProviders(providers);
+        catalog.setFulfillments(new Fulfillments());
 
         Message message  = request.getMessage();
         Intent intent = message.getIntent();
@@ -135,6 +152,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
             Config.instance().getLogger(getClass().getName()).info("SearchAdaptor: Query result size: " + itemIds.size());
             if (itemIds.isEmpty()) {
                 return;
+                // Empty provider list.
             }
         }
 
@@ -178,23 +196,6 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
 
 
 
-        reply.setMessage(new Message());
-        Catalog catalog = new Catalog();
-        catalog.setDescriptor(new Descriptor());
-        Subscriber subscriber = getSubscriber();
-        catalog.getDescriptor().setName(getProviderConfig().getStoreName());
-        catalog.getDescriptor().setLongDesc(getProviderConfig().getStoreName());
-        catalog.getDescriptor().setShortDesc(getProviderConfig().getStoreName());
-        catalog.getDescriptor().setCode(subscriber.getSubscriberId());
-        catalog.getDescriptor().setImages(new Images());
-        catalog.getDescriptor().setSymbol(getProviderConfig().getLogo());
-        catalog.getDescriptor().getImages().add(getProviderConfig().getLogo());
-
-        reply.getMessage().setCatalog(catalog);
-        Providers providers = new Providers();
-        catalog.setProviders(providers);
-
-
         for (Long appId : appIds) {
             Application application = applicationCache.get(appId);
 
@@ -228,6 +229,11 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                     tag.setValue(application.getAppId());
                     outProvider.setBppId(application.getAppId());
                     */
+                    Time time = new Time();
+                    time.setLabel("enable");
+                    time.setTimestamp(request.getContext().getTimestamp());
+                    outProvider.setTime(time);
+
                     providers.add(outProvider);
 
                 }
@@ -265,6 +271,15 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                     if (outFulfillment == null) {
                         outFulfillment = new in.succinct.beckn.Fulfillment(dbFulfillment.getObjectJson());
                         fulfillments.add(outFulfillment);
+
+                        in.succinct.beckn.Fulfillment catFulfillment = catalog.getFulfillments().get(dbFulfillment.getObjectId());
+                        if (catFulfillment == null){
+                            //Qadoo expected only id and type. !!TTa
+                            catFulfillment = new in.succinct.beckn.Fulfillment();
+                            catFulfillment.setId(outFulfillment.getId());
+                            catFulfillment.setType(outFulfillment.getType());
+                            catalog.getFulfillments().add(catFulfillment);
+                        }
                     }
                 }
 
@@ -402,10 +417,10 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
             if (end != null){
                 serviceability = getProviderConfig().getServiceability(fulfillment.getType(),end,providerLocation);
                 if (serviceability.isServiceable()){
-                    fulfillment.getState(true).getDescriptor(true).setCode("serviceable");
+                    fulfillment.getState(true).getDescriptor(true).setCode("Serviceable");
                 }
             }else {
-                fulfillment.getState(true).getDescriptor(true).setCode("serviceable");
+                fulfillment.getState(true).getDescriptor(true).setCode("Serviceable");
             }
         }
 

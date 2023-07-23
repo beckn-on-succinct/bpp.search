@@ -117,8 +117,10 @@ public class SearchExtensionInstaller implements Extension {
 
         TaskManager.instance().executeAsync((DbTask)()->{
             Database.getInstance().getCurrentTransaction().setAttributes(attributes);
-            context.remove(_IPath.class.getName());
-            Database.getInstance().setContext(context);
+            if (context != null) {
+                context.remove(_IPath.class.getName());
+                Database.getInstance().setContext(context);
+            }
             Event event = Event.find(CATALOG_SYNC_EVENT);
             if (event != null ){
                 event.raise(providers);
