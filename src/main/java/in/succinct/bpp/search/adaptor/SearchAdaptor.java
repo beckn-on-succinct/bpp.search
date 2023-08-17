@@ -32,6 +32,7 @@ import in.succinct.beckn.Location;
 import in.succinct.beckn.Locations;
 import in.succinct.beckn.Message;
 import in.succinct.beckn.Order;
+import in.succinct.beckn.Order.NonUniqueItems;
 import in.succinct.beckn.Payment.CommissionType;
 import in.succinct.beckn.Payments;
 import in.succinct.beckn.Price;
@@ -406,7 +407,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
         finalOrder.setProvider(new Provider());
         finalOrder.getProvider().setId(getSubscriber().getAppId());
         finalOrder.setQuote(new Quote());
-        finalOrder.setItems(new Items());
+        finalOrder.setItems(new NonUniqueItems());
         finalOrder.getProvider().setLocations(new Locations());
         finalOrder.setFulfillments(new Fulfillments());
 
@@ -457,8 +458,8 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
         }
 
 
-        Items outItems = finalOrder.getItems();
-        Items inItems = order.getItems();
+        NonUniqueItems outItems = finalOrder.getItems();
+        NonUniqueItems inItems = order.getItems();
 
         for (int i = 0 ; i < inItems.size() ; i ++ ){
             Item inItem = inItems.get(i);
