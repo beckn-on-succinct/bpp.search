@@ -47,7 +47,7 @@ public class SearchExtensionInstaller implements Extension {
         // Create App for self
         Application application  = app;
         if (application == null) {
-            Company company = adaptor.createCompany(adaptor.getProviderConfig().getOrganization());
+            Company company = adaptor.createCompany(adaptor.getProviderConfig().getOrganization(),adaptor.getSubscriber().getSubscriberId());
 
             application = Database.getTable(Application.class).newRecord();
             application.setAppId(subscriber.getAppId());
@@ -82,22 +82,29 @@ public class SearchExtensionInstaller implements Extension {
         endPoint = Database.getTable(EndPoint.class).getRefreshed(endPoint);
         endPoint.save();
 
-        Event event = Database.getTable(Event.class).newRecord();
-        event.setName(CATALOG_SYNC_EVENT);
-        event = Database.getTable(Event.class).getRefreshed(event);
-        event.save();
 
-        EventHandler eventHandler = Database.getTable(EventHandler.class).newRecord();
-        eventHandler.setApplicationId(application.getId());
-        eventHandler.setEndPointId(endPoint.getId());
-        eventHandler.setEventId(event.getId());
-        eventHandler.setContentType(MimeType.APPLICATION_JSON.toString());
-        eventHandler.setRelativeUrl("hook/providers/ingest"); //Dummy action needed to next from subscriber url. Url is needed to detect registry usually
-        eventHandler = Database.getTable(EventHandler.class).getRefreshed(eventHandler);
-        eventHandler.save();
+        for (String eventName : new String[]{CATALOG_SYNC_EVENT,CATALOG_SYNC_ACTIVATE, CATALOG_SYNC_DEACTIVATE}){
+            Event event = Database.getTable(Event.class).newRecord();
+            event.setName(eventName);
+            event = Database.getTable(Event.class).getRefreshed(event);
+            event.save();
+
+            EventHandler eventHandler = Database.getTable(EventHandler.class).newRecord();
+            eventHandler.setApplicationId(application.getId());
+            eventHandler.setEndPointId(endPoint.getId());
+            eventHandler.setEventId(event.getId());
+            eventHandler.setContentType(MimeType.APPLICATION_JSON.toString());
+            eventHandler.setRelativeUrl(String.format("hook/providers/%s",eventName.substring("catalog_".length()))); //Dummy action needed to next from subscriber url. Url is needed to detect registry usually
+            eventHandler = Database.getTable(EventHandler.class).getRefreshed(eventHandler);
+            eventHandler.save();
+
+        }
         indexItems(networkAdaptor,adaptor,application);
     }
-    public static String CATALOG_SYNC_EVENT = "catalog_index";
+    public static String CATALOG_SYNC_EVENT = "catalog_injest";
+    public static String CATALOG_SYNC_ACTIVATE = "catalog_activate";
+    public static String CATALOG_SYNC_DEACTIVATE = "catalog_deactivate";
+
     private void indexItems(NetworkAdaptor networkAdaptor,CommerceAdaptor adaptor, Application application) {
         List<Provider> providerList = application.getRawRecord().getAsProxy(in.succinct.bpp.search.db.model.Application.class).getProviders();
         if (providerList.size() > 0){

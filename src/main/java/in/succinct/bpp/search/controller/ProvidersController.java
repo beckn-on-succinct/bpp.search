@@ -46,12 +46,16 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
         super(path);
     }
 
+    @RequireLogin(false)
     public View activate(){
         return update(true);
     }
+    @RequireLogin(false)
     public View deactivate(){
         return update(false);
     }
+
+    @RequireLogin(false)
     public  View update(boolean active){
         try {
             in.succinct.beckn.Provider provider =

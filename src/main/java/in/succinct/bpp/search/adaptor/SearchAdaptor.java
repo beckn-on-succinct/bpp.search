@@ -467,8 +467,8 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
 
 
             in.succinct.bpp.search.db.model.Item dbItem = getItem(inItem.getId());
-            if (dbItem == null ){
-                throw new SellerException.ItemNotFound();
+            if (dbItem == null || !dbItem.isActive()){
+                continue;
             }
             Item outItem = new Item(dbItem.getObjectJson());
             outItem.setFulfillmentId(finalOrder.getFulfillment() == null ? null : finalOrder.getFulfillment().getId());
