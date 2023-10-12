@@ -27,6 +27,7 @@ import in.succinct.beckn.Payment;
 import in.succinct.beckn.Payments;
 import in.succinct.beckn.Provider;
 import in.succinct.beckn.Providers;
+import in.succinct.beckn.Request;
 import in.succinct.bpp.search.db.model.Application;
 import in.succinct.bpp.search.db.model.IndexedActivatableModel;
 import in.succinct.bpp.search.db.model.IndexedProviderModel;
@@ -125,9 +126,11 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
 
         in.succinct.bpp.search.db.model.Provider provider = Database.getTable(in.succinct.bpp.search.db.model.Provider.class).newRecord();
         provider.setApplicationId(getPath().getApplication().getId());
+        provider.setSubscriberId(bProvider.getBppId());
         provider.setObjectId(bProvider.getId());
         provider.setObjectName(bProvider.getDescriptor().getName());
         provider.setObjectJson(bProvider.toString());
+
         provider = Database.getTable(in.succinct.bpp.search.db.model.Provider.class).getRefreshed(provider);
         provider.save();
 
@@ -177,7 +180,7 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
             for (int j = 0; j < items.size(); j++) {
                 Item item = items.get(j);
 
-                for (String key : new String[]{"category_ids","fulfillment_ids","location_ids","payment_ids"}){
+                for (String key : new String[]{"fulfillment_ids","location_ids","payment_ids"}){
                     BecknStrings refIds = item.get(key) == null ? null : new BecknStrings(item.get(key));
                     if (refIds == null){
                         refIds = new BecknStrings();
@@ -191,11 +194,11 @@ public class ProvidersController extends ModelController<in.succinct.bpp.search.
                             ensureProviderModel(getModelClass(key),provider,active,becknObject);
                         }
                     }
-                    if (refIds.size() == 0){
+                    if (refIds.isEmpty()){
                         refIds.add(null);
                     }
                 }
-                for (String categoryId : item.getCategoryIds()) {
+                for (String categoryId : new String[]{item.getCategoryId()}) {
                     for (String locationId : item.getLocationIds()) {
                         for (String paymentId : item.getPaymentIds()) {
                             for (String fulfillmentId : item.getFulfillmentIds()) {

@@ -1,10 +1,12 @@
 package in.succinct.bpp.search.extensions;
 
+import com.venky.core.util.ObjectUtil;
 import com.venky.extension.Extension;
 import com.venky.extension.Registry;
 import com.venky.swf.db.Database;
 import com.venky.swf.db.annotations.column.ui.mimes.MimeType;
 import com.venky.swf.db.model.CryptoKey;
+import com.venky.swf.db.model.application.Application;
 import com.venky.swf.db.model.application.ApplicationPublicKey;
 import com.venky.swf.db.model.application.Event;
 import com.venky.swf.db.model.application.api.EndPoint;
@@ -14,6 +16,7 @@ import com.venky.swf.path._IPath;
 import com.venky.swf.plugins.background.core.DbTask;
 import com.venky.swf.plugins.background.core.TaskManager;
 import com.venky.swf.plugins.beckn.messaging.Subscriber;
+
 import com.venky.swf.plugins.collab.db.model.participants.admin.Company;
 import com.venky.swf.sql.Expression;
 import com.venky.swf.sql.Operator;
@@ -22,13 +25,13 @@ import in.succinct.beckn.Providers;
 import in.succinct.beckn.Request;
 import in.succinct.bpp.core.adaptor.CommerceAdaptor;
 import in.succinct.bpp.core.adaptor.NetworkAdaptor;
-import in.succinct.bpp.search.db.model.Application;
 import in.succinct.bpp.search.db.model.Item;
 import in.succinct.bpp.search.db.model.Provider;
 
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class SearchExtensionInstaller implements Extension {
     static {
@@ -48,18 +51,7 @@ public class SearchExtensionInstaller implements Extension {
         Application application  = app;
         if (application == null) {
             Company company = adaptor.createCompany(adaptor.getProviderConfig().getOrganization(),adaptor.getSubscriber().getSubscriberId());
-
-            application = Database.getTable(Application.class).newRecord();
-            application.setAppId(subscriber.getAppId());
-            application.setCompanyId(company.getId());
-            application.setHeaders("(created) (expires) digest");
-            application.setSignatureLifeMillis(5000);
-            application.setSigningAlgorithm(Request.SIGNATURE_ALGO);
-            application.setHashingAlgorithm("BLAKE2B-512");
-            application.setSigningAlgorithmCommonName(application.getSigningAlgorithm().toLowerCase());
-            application.setHashingAlgorithmCommonName(application.getHashingAlgorithm().toLowerCase());
-            application = Database.getTable(Application.class).getRefreshed(application);
-            application.save();
+            application = adaptor.createApplication(company,adaptor.getSubscriber().getSubscriberId(),null);
         }
 
 
@@ -101,13 +93,14 @@ public class SearchExtensionInstaller implements Extension {
         }
         indexItems(networkAdaptor,adaptor,application);
     }
-    public static String CATALOG_SYNC_EVENT = "catalog_injest";
+    public static String CATALOG_SYNC_EVENT = "catalog_ingest";
     public static String CATALOG_SYNC_ACTIVATE = "catalog_activate";
     public static String CATALOG_SYNC_DEACTIVATE = "catalog_deactivate";
 
-    private void indexItems(NetworkAdaptor networkAdaptor,CommerceAdaptor adaptor, Application application) {
-        List<Provider> providerList = application.getRawRecord().getAsProxy(in.succinct.bpp.search.db.model.Application.class).getProviders();
-        if (providerList.size() > 0){
+    private void indexItems(NetworkAdaptor networkAdaptor,CommerceAdaptor adaptor, com.venky.swf.db.model.application.Application application) {
+        List<Provider> providerList = application.getRawRecord().getAsProxy(in.succinct.bpp.search.db.model.Application.class).
+                getProviders().stream().filter(p-> ObjectUtil.equals(p.getObjectId(),adaptor.getSubscriber().getSubscriberId())).collect(Collectors.toList());
+        if (!providerList.isEmpty()){
             new Select().from(Item.class).where(new Expression(ModelReflector.instance(Item.class).getPool(),"ACTIVE", Operator.EQ)).execute(Item.class).forEach(i->{
                 i.setActive(true);i.save();
             });

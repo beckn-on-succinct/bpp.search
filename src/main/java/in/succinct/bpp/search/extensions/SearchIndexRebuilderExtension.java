@@ -1,5 +1,6 @@
 package in.succinct.bpp.search.extensions;
 
+import com.venky.core.util.ObjectUtil;
 import com.venky.extension.Extension;
 import com.venky.extension.Registry;
 import com.venky.swf.db.model.Model;
@@ -24,7 +25,12 @@ public class SearchIndexRebuilderExtension implements Extension {
             }
         }
         if (application !=null ){
-            application.getRawRecord().getAsProxy(in.succinct.bpp.search.db.model.Application.class).getProviders().forEach(Model::destroy);
+            application.getRawRecord().getAsProxy(in.succinct.bpp.search.db.model.Application.class).getProviders().forEach(p->{
+                if (ObjectUtil.equals(p.getObjectId(),adaptor.getSubscriber().getSubscriberId())){
+                    //Provider id is subscriber id in AbstractECommerceAdaptor!!
+                    p.destroy();
+                }
+            });
             adaptor.clearCache();
             Registry.instance().callExtensions("in.succinct.bpp.search.extension.installer",networkAdaptor,adaptor,application);
         }
