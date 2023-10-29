@@ -216,7 +216,9 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
 
         Select sel = new Select().from(in.succinct.bpp.search.db.model.Item.class);
         Expression where = new Expression(sel.getPool(), Conjunction.AND);
-        where.add(new Expression(sel.getPool(),"ACTIVE", Operator.EQ,true));
+        if (incrementalSearchRequest == null ) {
+            where.add(new Expression(sel.getPool(), "ACTIVE", Operator.EQ, true));
+        }
         where.add(new Expression(sel.getPool(),"APPLICATION_ID", Operator.EQ, getApplication().getId()));
         if (incrementalSearchRequest != null) {
             if (incrementalSearchRequest.getLastTransmissionTime() == null) {
