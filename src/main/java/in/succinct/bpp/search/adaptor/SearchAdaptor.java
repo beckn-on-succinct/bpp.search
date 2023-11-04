@@ -416,7 +416,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                         Location storeLocation = locations.get(outItem.getLocationId());
                         City city = City.findByCountryAndStateAndName(storeLocation.getAddress().getCountry(),storeLocation.getAddress().getState(),storeLocation.getAddress().getCity());
 
-                        boolean storeInCity = city.getCode().equals(request.getContext().getCity());;
+                        boolean storeInCity = city.getCode().equals(request.getContext().getCity()) || ObjectUtil.equals(request.getContext().getCity(),"*");
 
                         if (end != null && getProviderConfig().getServiceability(inFulfillmentType,end,storeLocation).isServiceable()){
                             items.add(outItem);
@@ -427,6 +427,10 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                 }
 
             }
+        }
+        if (incrementalSearchRequest != null){
+            catalog.setFulfillments(null);
+            catalog.setDescriptor(null);
         }
     }
 
