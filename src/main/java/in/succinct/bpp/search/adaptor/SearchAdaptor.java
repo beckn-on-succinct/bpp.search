@@ -1,6 +1,7 @@
 package in.succinct.bpp.search.adaptor;
 
 import com.venky.cache.Cache;
+import com.venky.core.util.Bucket;
 import com.venky.core.util.ObjectUtil;
 import com.venky.swf.db.Database;
 import com.venky.swf.db.model.Model;
@@ -208,6 +209,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
             itemIds = indexer.findIds(query, 0);
             Config.instance().getLogger(getClass().getName()).info("SearchAdaptor: Query result size: " + itemIds.size());
             if (itemIds.isEmpty()) {
+                reply.setSuppressed(true);
                 return;
                 // Empty provider list.
             }
@@ -247,6 +249,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
 
         List<in.succinct.bpp.search.db.model.Item> records = sel.where(where).execute(in.succinct.bpp.search.db.model.Item.class, 30);
 
+        Bucket numItemsReturned = new Bucket();
         Set<Long> appIds = new HashSet<>();
         Set<Long> providerIds = new HashSet<>();
         Set<Long> providerLocationIds = new HashSet<>();
@@ -306,10 +309,12 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                     tag.setValue(application.getAppId());
                     outProvider.setBppId(application.getAppId());
                     */
-                    Time time = new Time();
-                    time.setLabel("enable");
-                    time.setTimestamp(reply.getContext().getTimestamp());
-                    outProvider.setTime(time);
+                    if (incrementalSearchRequest == null) {
+                        Time time = new Time();
+                        time.setLabel("enable");
+                        time.setTimestamp(reply.getContext().getTimestamp());
+                        outProvider.setTime(time);
+                    }
 
                     providers.add(outProvider);
 
@@ -387,7 +392,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                 }
                 if (items.get(dbItem.getObjectId()) == null) {
                     Item outItem = new Item((JSONObject) JSONAwareWrapper.parse(dbItem.getObjectJson()));
-                    if (!outItem.getFulfillmentIds().isEmpty()) {
+                    if (!outItem.getFulfillmentIds().isEmpty() ) {
                         outItem.setFulfillmentId(outItem.getFulfillmentIds().get(0));
                     }
                     if (!outItem.getLocationIds().isEmpty()) {
@@ -420,8 +425,10 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
 
                         if (end != null && getProviderConfig().getServiceability(inFulfillmentType,end,storeLocation).isServiceable()){
                             items.add(outItem);
+                            numItemsReturned.increment();
                         }else if (end == null && storeInCity) {
                             items.add(outItem);
+                            numItemsReturned.increment();
                         }
                     }
                 }
@@ -432,6 +439,8 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
             catalog.setFulfillments(null);
             catalog.setDescriptor(null);
         }
+        reply.setSuppressed(numItemsReturned.intValue() == 0); // No need to send on_search back!T
+
     }
 
     private Descriptor normalizeDescriptor(Descriptor descriptor) {
