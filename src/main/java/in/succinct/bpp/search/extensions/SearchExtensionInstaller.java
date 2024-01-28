@@ -25,7 +25,7 @@ import in.succinct.beckn.Message;
 import in.succinct.beckn.Providers;
 import in.succinct.beckn.Request;
 import in.succinct.bpp.core.adaptor.CommerceAdaptor;
-import in.succinct.bpp.core.adaptor.NetworkApiAdaptor;
+import in.succinct.bpp.core.adaptor.api.NetworkApiAdaptor;
 import in.succinct.catalog.indexer.db.model.Item;
 import in.succinct.catalog.indexer.db.model.Provider;
 import in.succinct.catalog.indexer.ingest.CatalogDigester.Operation;

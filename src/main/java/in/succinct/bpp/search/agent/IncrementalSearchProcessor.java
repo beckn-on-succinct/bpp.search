@@ -11,7 +11,7 @@ import com.venky.swf.sql.Select;
 import in.succinct.beckn.Request;
 import in.succinct.bpp.core.adaptor.CommerceAdaptor;
 import in.succinct.bpp.core.adaptor.CommerceAdaptorFactory;
-import in.succinct.bpp.core.adaptor.NetworkApiAdaptor;
+import in.succinct.bpp.core.adaptor.api.NetworkApiAdaptor;
 import in.succinct.bpp.search.db.model.IncrementalSearchRequest;
 import in.succinct.json.JSONAwareWrapper;
 import in.succinct.onet.core.adaptor.NetworkAdaptorFactory;
