@@ -5,7 +5,6 @@ import com.venky.core.util.Bucket;
 import com.venky.core.util.ObjectUtil;
 import com.venky.swf.db.Database;
 import com.venky.swf.db.model.Model;
-import com.venky.swf.db.model.application.Application;
 import com.venky.swf.plugins.beckn.messaging.Subscriber;
 import com.venky.swf.plugins.collab.db.model.config.City;
 import com.venky.swf.plugins.lucene.index.LuceneIndexer;
@@ -50,15 +49,12 @@ import in.succinct.beckn.SellerException.GenericBusinessError;
 import in.succinct.beckn.SellerException.ItemQuantityUnavailable;
 import in.succinct.beckn.Time;
 import in.succinct.bpp.core.adaptor.AbstractCommerceAdaptor;
-import in.succinct.bpp.core.adaptor.CommerceAdaptor;
-import in.succinct.bpp.core.db.model.LocalOrderSynchronizer;
-import in.succinct.bpp.core.db.model.LocalOrderSynchronizerFactory;
 import in.succinct.bpp.core.db.model.ProviderConfig.Serviceability;
-import in.succinct.bpp.search.db.model.Fulfillment;
 import in.succinct.bpp.search.db.model.IncrementalSearchRequest;
-import in.succinct.bpp.search.db.model.IndexedApplicationModel;
-import in.succinct.bpp.search.db.model.Payment;
-import in.succinct.bpp.search.db.model.ProviderLocation;
+import in.succinct.catalog.indexer.db.model.Fulfillment;
+import in.succinct.catalog.indexer.db.model.IndexedSubscriberModel;
+import in.succinct.catalog.indexer.db.model.Payment;
+import in.succinct.catalog.indexer.db.model.ProviderLocation;
 import in.succinct.json.JSONAwareWrapper;
 import org.apache.lucene.search.Query;
 import org.json.simple.JSONObject;
@@ -170,11 +166,10 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
             providerDescriptor.setName(providerDescriptor.getName().trim());
             q.append(String.format("     ( PROVIDER:%s* or PROVIDER_LOCATION:%s* )",providerDescriptor.getName(),providerDescriptor.getName()));
         }else if (provider != null && !ObjectUtil.isVoid(provider.getId())) {
-            in.succinct.bpp.search.db.model.Provider dbProvider = Database.getTable(in.succinct.bpp.search.db.model.Provider.class).newRecord();
+            in.succinct.catalog.indexer.db.model.Provider dbProvider = Database.getTable(in.succinct.catalog.indexer.db.model.Provider.class).newRecord();
             dbProvider.setSubscriberId(getSubscriber().getSubscriberId());
-            dbProvider.setApplicationId(getApplication().getId());
             dbProvider.setObjectId(provider.getId());
-            dbProvider = Database.getTable(in.succinct.bpp.search.db.model.Provider.class).getRefreshed(dbProvider);
+            dbProvider = Database.getTable(in.succinct.catalog.indexer.db.model.Provider.class).getRefreshed(dbProvider);
             if (dbProvider.getRawRecord().isNewRecord()){
                 q.append(String.format(" ( PROVIDER:%s or PROVIDER_LOCATION:%s )", provider.getId(), provider.getId()));
             }else {
@@ -203,7 +198,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
         }
         List<Long> itemIds = new ArrayList<>();
         if (!ObjectUtil.isVoid(q.toString())) {
-            LuceneIndexer indexer = LuceneIndexer.instance(in.succinct.bpp.search.db.model.Item.class);
+            LuceneIndexer indexer = LuceneIndexer.instance(in.succinct.catalog.indexer.db.model.Item.class);
             Query query = indexer.constructQuery(q.toString());
             Config.instance().getLogger(getClass().getName()).info("Searching for /items/search/" + q);
             itemIds = indexer.findIds(query, 0);
@@ -216,12 +211,12 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
         }
 
 
-        Select sel = new Select().from(in.succinct.bpp.search.db.model.Item.class);
+        Select sel = new Select().from(in.succinct.catalog.indexer.db.model.Item.class);
         Expression where = new Expression(sel.getPool(), Conjunction.AND);
         if (incrementalSearchRequest == null ) {
             where.add(new Expression(sel.getPool(), "ACTIVE", Operator.EQ, true));
         }
-        where.add(new Expression(sel.getPool(),"APPLICATION_ID", Operator.EQ, getApplication().getId()));
+        where.add(new Expression(sel.getPool(),"SUBSCRIBER_ID", Operator.EQ, getSubscriber().getSubscriberId()));
         if (incrementalSearchRequest != null) {
             if (incrementalSearchRequest.getLastTransmissionTime() == null) {
                 incrementalSearchRequest.setLastTransmissionTime(incrementalSearchRequest.getStartTime());
@@ -244,51 +239,49 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
             where.add(Expression.createExpression(sel.getPool(),"ID",Operator.IN,itemIds.toArray()));
         }
 
-        sel.where(where).add(String.format(" and provider_location_id in ( select id from provider_locations where provider_id in (select id from providers where application_id = %d and subscriber_id = '%s'))",
-                getApplication().getId(), getSubscriber().getSubscriberId())     );
+        sel.where(where).add(String.format(" and provider_location_id in ( select id from provider_locations where provider_id in (select id from providers where subscriber_id = '%s'))",
+                 getSubscriber().getSubscriberId())     );
 
-        List<in.succinct.bpp.search.db.model.Item> records = sel.where(where).execute(in.succinct.bpp.search.db.model.Item.class, 30);
+        List<in.succinct.catalog.indexer.db.model.Item> records = sel.where(where).execute(in.succinct.catalog.indexer.db.model.Item.class, 30);
 
         Bucket numItemsReturned = new Bucket();
-        Set<Long> appIds = new HashSet<>();
+        Set<String> subscriberIds = new HashSet<>();
         Set<Long> providerIds = new HashSet<>();
         Set<Long> providerLocationIds = new HashSet<>();
         Set<Long> fulfillmentIds = new HashSet<>();
         Set<Long> categoryIds = new HashSet<>();
         Set<Long> paymentIds = new HashSet<>();
 
-        Cache<Long, Cache<Long, in.succinct.bpp.search.db.model.Item>> appItemMap = createAppDbCache(in.succinct.bpp.search.db.model.Item.class,new HashSet<>());
+        Cache<String, Cache<Long, in.succinct.catalog.indexer.db.model.Item>> appItemMap = createAppDbCache(in.succinct.catalog.indexer.db.model.Item.class,new HashSet<>());
         records.forEach(i->{
-            appIds.add(i.getApplicationId());
+            subscriberIds.add(i.getSubscriberId());
             providerIds.add(i.getProviderId());
             providerLocationIds.add(i.getProviderLocationId());
             fulfillmentIds.add(i.getFulfillmentId());
             categoryIds.add(i.getCategoryId());
             paymentIds.add(i.getPaymentId());
-            appItemMap.get(i.getApplicationId()).put(i.getId(),i);
+            appItemMap.get(i.getSubscriberId()).put(i.getId(),i);
         });
-        Cache<Long, Application> applicationCache = createDbCache(Application.class,appIds);
-        Cache<Long, Cache<Long, in.succinct.bpp.search.db.model.Provider>> appProviderMap = createAppDbCache(in.succinct.bpp.search.db.model.Provider.class,providerIds);
-        Cache<Long, Cache<Long, in.succinct.bpp.search.db.model.ProviderLocation>> appLocationMap = createAppDbCache(in.succinct.bpp.search.db.model.ProviderLocation.class,providerLocationIds);
-        Cache<Long, Cache<Long, in.succinct.bpp.search.db.model.Fulfillment>> appFulfillmentMap = createAppDbCache(in.succinct.bpp.search.db.model.Fulfillment.class,fulfillmentIds);
-        Cache<Long, Cache<Long, in.succinct.bpp.search.db.model.Category>> appCategoryMap = createAppDbCache(in.succinct.bpp.search.db.model.Category.class,categoryIds);
-        Cache<Long, Cache<Long, in.succinct.bpp.search.db.model.Payment>> appPaymentMap = createAppDbCache(in.succinct.bpp.search.db.model.Payment.class,paymentIds);
+        Cache<String, Cache<Long, in.succinct.catalog.indexer.db.model.Provider>> appProviderMap = createAppDbCache(in.succinct.catalog.indexer.db.model.Provider.class,providerIds);
+        Cache<String, Cache<Long, in.succinct.catalog.indexer.db.model.ProviderLocation>> appLocationMap = createAppDbCache(in.succinct.catalog.indexer.db.model.ProviderLocation.class,providerLocationIds);
+        Cache<String, Cache<Long, in.succinct.catalog.indexer.db.model.Fulfillment>> appFulfillmentMap = createAppDbCache(in.succinct.catalog.indexer.db.model.Fulfillment.class,fulfillmentIds);
+        Cache<String, Cache<Long, in.succinct.catalog.indexer.db.model.Category>> appCategoryMap = createAppDbCache(in.succinct.catalog.indexer.db.model.Category.class,categoryIds);
+        Cache<String, Cache<Long, in.succinct.catalog.indexer.db.model.Payment>> appPaymentMap = createAppDbCache(in.succinct.catalog.indexer.db.model.Payment.class,paymentIds);
 
 
 
-        for (Long appId : appIds) {
-            Application application = applicationCache.get(appId);
+        for (String subscriberId : subscriberIds) {
 
-            Map<Long, in.succinct.bpp.search.db.model.Item> itemMap = appItemMap.get(appId);
+            Map<Long, in.succinct.catalog.indexer.db.model.Item> itemMap = appItemMap.get(subscriberId);
             for (Long itemId : itemMap.keySet()) {
                 Config.instance().getLogger(getClass().getName()).info("SearchAdaptor: Looping through result items" + itemId);
-                in.succinct.bpp.search.db.model.Item dbItem = itemMap.get(itemId);
+                in.succinct.catalog.indexer.db.model.Item dbItem = itemMap.get(itemId);
 
-                in.succinct.bpp.search.db.model.Provider dbProvider = appProviderMap.get(appId).get(dbItem.getProviderId());
-                ProviderLocation dbProviderLocation = appLocationMap.get(appId).get(dbItem.getProviderLocationId());
-                Fulfillment dbFulfillment = appFulfillmentMap.get(appId).get(dbItem.getFulfillmentId());
-                in.succinct.bpp.search.db.model.Category dbCategory = appCategoryMap.get(appId).get(dbItem.getCategoryId());
-                Payment dbPayment = appPaymentMap.get(appId).get(dbItem.getPaymentId());
+                in.succinct.catalog.indexer.db.model.Provider dbProvider = appProviderMap.get(subscriberId).get(dbItem.getProviderId());
+                ProviderLocation dbProviderLocation = appLocationMap.get(subscriberId).get(dbItem.getProviderLocationId());
+                Fulfillment dbFulfillment = appFulfillmentMap.get(subscriberId).get(dbItem.getFulfillmentId());
+                in.succinct.catalog.indexer.db.model.Category dbCategory = appCategoryMap.get(subscriberId).get(dbItem.getCategoryId());
+                Payment dbPayment = appPaymentMap.get(subscriberId).get(dbItem.getPaymentId());
 
                 Provider outProvider = providers.get(dbProvider.getObjectId());
                 if (outProvider == null) {
@@ -421,7 +414,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                         Location storeLocation = locations.get(outItem.getLocationId());
                         City city = City.findByCountryAndStateAndName(storeLocation.getAddress().getCountry(),storeLocation.getAddress().getState(),storeLocation.getAddress().getCity());
 
-                        boolean storeInCity = city.getCode().equals(request.getContext().getCity()) || ObjectUtil.equals(request.getContext().getCity(),"*");
+                        boolean storeInCity = ObjectUtil.equals(city.getCode(),request.getContext().getCity()) || ObjectUtil.equals(request.getContext().getCity(),"*");
 
                         if (end != null && getProviderConfig().getServiceability(inFulfillmentType,end,storeLocation).isServiceable()){
                             items.add(outItem);
@@ -470,17 +463,17 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
         return cache;
     }
 
-    private <T extends Model & IndexedApplicationModel> Cache<Long,Cache<Long,T>> createAppDbCache(Class<T> clazz, Set<Long> ids){
-        Cache<Long,Cache<Long,T>> cache = new Cache<>(0,0) {
+    private <T extends Model & IndexedSubscriberModel> Cache<String,Cache<Long,T>> createAppDbCache(Class<T> clazz, Set<Long> ids){
+        Cache<String,Cache<Long,T>> cache = new Cache<>(0,0) {
             @Override
-            protected Cache<Long, T> getValue(Long applicationId) {
+            protected Cache<Long, T> getValue(String subscriberId) {
                 return createDbCache(clazz,new HashSet<>());
             }
         };
         if (!ids.isEmpty() && !ids.contains(null)){
             Select select = new Select().from(clazz);
             select.where(new Expression(select.getPool(),"ID",Operator.IN,ids.toArray()));
-            select.execute(clazz).forEach(t->cache.get(t.getApplicationId()).put(t.getId(),t));
+            select.execute(clazz).forEach(t->cache.get(t.getSubscriberId()).put(t.getId(),t));
         }
         return cache;
     }
@@ -516,13 +509,20 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
         if (fulfillment != null){
             finalOrder.getFulfillments().add(fulfillment);
             finalOrder.setFulfillment(fulfillment);
-            if (end != null){
-                serviceability = getProviderConfig().getServiceability(fulfillment.getType(),end,providerLocation);
-                if (serviceability.isServiceable()){
-                    fulfillment.getState(true).getDescriptor(true).setCode("Serviceable");
-                }
-            }else {
+            serviceability = getProviderConfig().getServiceability(fulfillment.getType(),end,providerLocation);
+            if (serviceability.isServiceable()){
                 fulfillment.getState(true).getDescriptor(true).setCode("Serviceable");
+            }
+        }else {
+            for (in.succinct.beckn.Fulfillment f : getFulfillments()){
+                serviceability = getProviderConfig().getServiceability(f.getType(),null, providerLocation);
+                if (serviceability.isServiceable()){
+                    fulfillment = new in.succinct.beckn.Fulfillment(f.toString());
+                    fulfillment.getState(true).getDescriptor(true).setCode("Serviceable");
+                    finalOrder.getFulfillments().add(fulfillment);
+                    finalOrder.setFulfillment(fulfillment);
+                    break;
+                }
             }
         }
 
@@ -544,7 +544,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
         BreakUpElement shipping_total = breakUp.createElement(BreakUpCategory.delivery,"Delivery Charges", new Price());
         shipping_total.getPrice().setCurrency(orderPrice.getCurrency());
         shipping_total.getPrice().setValue(0.0);
-        if (serviceability != null){
+        if (serviceability != null && serviceability.isServiceable()){
             shipping_total.getPrice().setValue(serviceability.getCharges());
             breakUp.add(shipping_total);
             shipping_total.setItemId(fulfillment.getId());
@@ -567,7 +567,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
             Quantity quantity = inItem.get(Quantity.class,"quantity");
 
 
-            in.succinct.bpp.search.db.model.Item dbItem = getItem(inItem.getId());
+            in.succinct.catalog.indexer.db.model.Item dbItem = getItem(inItem.getId());
             if (dbItem == null ){
                 continue;
             }
@@ -634,11 +634,11 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
         return finalOrder;
     }
 
-    private in.succinct.bpp.search.db.model.Item getItem(String objectId) {
+    private in.succinct.catalog.indexer.db.model.Item getItem(String objectId) {
 
-        Select select = new Select().from(in.succinct.bpp.search.db.model.Item.class);
-        List<in.succinct.bpp.search.db.model.Item> dbItems = select.where(new Expression(select.getPool(), Conjunction.AND).
-                add(new Expression(select.getPool(), "APPLICATION_ID", Operator.EQ, getApplication().getId())).
+        Select select = new Select().from(in.succinct.catalog.indexer.db.model.Item.class);
+        List<in.succinct.catalog.indexer.db.model.Item> dbItems = select.where(new Expression(select.getPool(), Conjunction.AND).
+                add(new Expression(select.getPool(), "SUBSCRIBER_ID", Operator.EQ, getSubscriber().getSubscriberId())).
                 add(new Expression(select.getPool(), "OBJECT_ID", Operator.EQ, objectId))).execute(1);
 
         return dbItems.isEmpty() ? null : dbItems.get(0);

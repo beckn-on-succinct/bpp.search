@@ -1,6 +1,5 @@
 package in.succinct.bpp.search.extensions;
 
-import com.venky.core.util.ObjectUtil;
 import com.venky.extension.Extension;
 import com.venky.extension.Registry;
 import com.venky.swf.db.Database;
@@ -16,22 +15,28 @@ import com.venky.swf.path._IPath;
 import com.venky.swf.plugins.background.core.DbTask;
 import com.venky.swf.plugins.background.core.TaskManager;
 import com.venky.swf.plugins.beckn.messaging.Subscriber;
-
 import com.venky.swf.plugins.collab.db.model.participants.admin.Company;
 import com.venky.swf.sql.Expression;
 import com.venky.swf.sql.Operator;
 import com.venky.swf.sql.Select;
+import in.succinct.beckn.Catalog;
+import in.succinct.beckn.Context;
+import in.succinct.beckn.Message;
 import in.succinct.beckn.Providers;
 import in.succinct.beckn.Request;
 import in.succinct.bpp.core.adaptor.CommerceAdaptor;
-import in.succinct.bpp.core.adaptor.NetworkAdaptor;
-import in.succinct.bpp.search.db.model.Item;
-import in.succinct.bpp.search.db.model.Provider;
+import in.succinct.bpp.core.adaptor.NetworkApiAdaptor;
+import in.succinct.catalog.indexer.db.model.Item;
+import in.succinct.catalog.indexer.db.model.Provider;
+import in.succinct.catalog.indexer.ingest.CatalogDigester.Operation;
+import in.succinct.onet.core.adaptor.NetworkAdaptor;
+import org.jetbrains.annotations.NotNull;
 
 import java.sql.Timestamp;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.UUID;
 
 public class SearchExtensionInstaller implements Extension {
     static {
@@ -44,7 +49,7 @@ public class SearchExtensionInstaller implements Extension {
         Application application = (context.length > 2) ? (Application)context[2] : null;
         installPlugin(networkAdaptor,adaptor,application);
     }
-    public void installPlugin(NetworkAdaptor networkAdaptor,CommerceAdaptor adaptor,Application app){
+    public void installPlugin(NetworkAdaptor networkAdaptor, @NotNull CommerceAdaptor adaptor, Application app){
         Subscriber subscriber = adaptor.getSubscriber();
 
         // Create App for self
@@ -74,7 +79,6 @@ public class SearchExtensionInstaller implements Extension {
         endPoint = Database.getTable(EndPoint.class).getRefreshed(endPoint);
         endPoint.save();
 
-
         for (String eventName : new String[]{CATALOG_SYNC_EVENT,CATALOG_SYNC_ACTIVATE, CATALOG_SYNC_DEACTIVATE}){
             Event event = Database.getTable(Event.class).newRecord();
             event.setName(eventName);
@@ -91,15 +95,17 @@ public class SearchExtensionInstaller implements Extension {
             eventHandler.save();
 
         }
-        indexItems(networkAdaptor,adaptor,application);
-    }
-    public static String CATALOG_SYNC_EVENT = "catalog_ingest";
-    public static String CATALOG_SYNC_ACTIVATE = "catalog_activate";
-    public static String CATALOG_SYNC_DEACTIVATE = "catalog_deactivate";
 
-    private void indexItems(NetworkAdaptor networkAdaptor,CommerceAdaptor adaptor, com.venky.swf.db.model.application.Application application) {
-        List<Provider> providerList = application.getRawRecord().getAsProxy(in.succinct.bpp.search.db.model.Application.class).
-                getProviders().stream().filter(p-> ObjectUtil.equals(p.getObjectId(),adaptor.getSubscriber().getSubscriberId())).collect(Collectors.toList());
+        indexItems(networkAdaptor,adaptor,subscriber.getSubscriberId());
+    }
+    public static final String CATALOG_SYNC_EVENT = "catalog_ingest";
+    public static final String CATALOG_SYNC_ACTIVATE = "catalog_" + Operation.activate.name();
+    public static final String CATALOG_SYNC_DEACTIVATE = "catalog_" + Operation.deactivate.name();
+
+    private void indexItems(NetworkAdaptor networkAdaptor,CommerceAdaptor adaptor, String subscriberId) {
+        Select select  = new Select().from(Provider.class);
+        select.where(new Expression(select.getPool(),"SUBSCRIBER_ID",Operator.EQ,subscriberId));
+        List<Provider> providerList = select.execute();
         if (!providerList.isEmpty()){
             new Select().from(Item.class).where(new Expression(ModelReflector.instance(Item.class).getPool(),"ACTIVE", Operator.EQ)).execute(Item.class).forEach(i->{
                 i.setActive(true);i.save();
@@ -108,7 +114,7 @@ public class SearchExtensionInstaller implements Extension {
         }
 
         Request response = new Request();
-        networkAdaptor.getApiAdaptor()._search(adaptor,response);
+        ((NetworkApiAdaptor)networkAdaptor.getApiAdaptor())._search(adaptor,response);
         Providers providers = response.getMessage().getCatalog().getProviders();
 
 
@@ -123,9 +129,34 @@ public class SearchExtensionInstaller implements Extension {
             }
             Event event = Event.find(CATALOG_SYNC_EVENT);
             if (event != null ){
-                event.raise(providers);
+                event.raise(prepareCatalogSyncRequest(providers,adaptor,networkAdaptor));
             }
         },false);
+
+    }
+    public Request prepareCatalogSyncRequest(Providers providers,CommerceAdaptor adaptor,NetworkAdaptor networkAdaptor){
+        Request request = new Request();
+        Context context = new Context();
+        request.setContext(context);
+        request.setMessage(new Message());
+        request.getMessage().setCatalog(new Catalog());
+        request.getMessage().getCatalog().setProviders(providers);
+        context.setBppId(adaptor.getSubscriber().getSubscriberId());
+        context.setBppUri(adaptor.getSubscriber().getSubscriberUrl());
+        context.setTransactionId(UUID.randomUUID().toString());
+        context.setMessageId(UUID.randomUUID().toString());
+        context.setDomain(adaptor.getSubscriber().getDomain());
+        context.setCountry(adaptor.getSubscriber().getCountry());
+        context.setCoreVersion(networkAdaptor.getCoreVersion());
+        context.setTimestamp(new Date());
+        context.setNetworkId(networkAdaptor.getId());
+        context.setCity(adaptor.getSubscriber().getCity());
+        context.setTtl(60);
+
+        for (in.succinct.beckn.Provider provider : providers){
+            provider.setTag("general_attributes","catalog.indexer.reset","Y");
+        }
+        return request;
 
     }
 

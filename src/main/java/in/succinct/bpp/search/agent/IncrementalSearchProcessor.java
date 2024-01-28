@@ -11,11 +11,10 @@ import com.venky.swf.sql.Select;
 import in.succinct.beckn.Request;
 import in.succinct.bpp.core.adaptor.CommerceAdaptor;
 import in.succinct.bpp.core.adaptor.CommerceAdaptorFactory;
-import in.succinct.bpp.core.adaptor.NetworkAdaptorFactory;
-import in.succinct.bpp.core.adaptor.api.NetworkApiAdaptor;
-import in.succinct.bpp.core.tasks.BppActionTask;
+import in.succinct.bpp.core.adaptor.NetworkApiAdaptor;
 import in.succinct.bpp.search.db.model.IncrementalSearchRequest;
 import in.succinct.json.JSONAwareWrapper;
+import in.succinct.onet.core.adaptor.NetworkAdaptorFactory;
 import org.json.simple.JSONObject;
 
 import java.util.ArrayList;
@@ -56,7 +55,7 @@ public class IncrementalSearchProcessor implements Task , AgentSeederTaskBuilder
             Request internalRequest = new Request(incrementalSearchRequest.getRequestPayload());
             internalRequest.getExtendedAttributes().set("headers",headers);
             Request internalResponse = new Request();
-            NetworkApiAdaptor apiAdaptor = NetworkAdaptorFactory.getInstance().getAdaptor(incrementalSearchRequest.getNetworkId()).getApiAdaptor();
+            NetworkApiAdaptor apiAdaptor = (NetworkApiAdaptor) NetworkAdaptorFactory.getInstance().getAdaptor(incrementalSearchRequest.getNetworkId()).getApiAdaptor();
             apiAdaptor.createReplyContext(subscriber,internalRequest,internalResponse);
 
             CommerceAdaptor commerceAdaptor = CommerceAdaptorFactory.getInstance().createAdaptor(adaptorProperties,subscriber);
