@@ -66,7 +66,7 @@ public class SearchExtensionInstaller implements Extension {
         publicKey.setApplicationId(application.getId());
         publicKey.setPurpose(CryptoKey.PURPOSE_SIGNING);
         publicKey.setAlgorithm(Request.SIGNATURE_ALGO);
-        publicKey.setKeyId(subscriber.getUniqueKeyId());
+        publicKey.setKeyId(subscriber.getSubscriberId()+"|"+subscriber.getUniqueKeyId());
         publicKey.setValidFrom(new Timestamp(subscriber.getValidFrom().getTime()));
         publicKey.setValidUntil(new Timestamp(subscriber.getValidTo().getTime()));
         publicKey.setPublicKey(Request.getPemSigningKey(subscriber.getSigningPublicKey()));
