@@ -1,6 +1,7 @@
 package in.succinct.bpp.search.adaptor;
 
 import com.venky.cache.Cache;
+import com.venky.core.date.DateUtils;
 import com.venky.core.util.Bucket;
 import com.venky.core.util.ObjectUtil;
 import com.venky.swf.db.Database;
@@ -286,6 +287,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                 Provider outProvider = providers.get(dbProvider.getObjectId());
                 if (outProvider == null) {
                     outProvider = new Provider(dbProvider.getObjectJson());
+                    outProvider.setExp(DateUtils.addMinutes(request.getContext().getTimestamp(),(int)outProvider.getTtl()));
                     /* Only on Beckn 1.1
                     TagGroup tagGroup = new TagGroup();
                     outProvider.setTags(tagGroup);
@@ -409,7 +411,8 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                         available.setCount(getProviderConfig().getMaxOrderQuantity()); // Ordering more than 20 is not allowed.
                         itemQuantity.setAvailable(available);
                         itemQuantity.setMaximum(available);
-                        outItem.setItemQuantity(itemQuantity);
+
+                        outItem.setTentativeItemQuantity(itemQuantity);
 
                         Location storeLocation = locations.get(outItem.getLocationId());
                         City city = City.findByCountryAndStateAndName(storeLocation.getAddress().getCountry(),storeLocation.getAddress().getState(),storeLocation.getAddress().getCity());

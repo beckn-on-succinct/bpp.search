@@ -66,7 +66,7 @@ public class SearchExtensionInstaller implements Extension {
         publicKey.setApplicationId(application.getId());
         publicKey.setPurpose(CryptoKey.PURPOSE_SIGNING);
         publicKey.setAlgorithm(Request.SIGNATURE_ALGO);
-        publicKey.setKeyId(subscriber.getSubscriberId()+"|"+subscriber.getUniqueKeyId());
+        publicKey.setKeyId(subscriber.getUniqueKeyId());
         publicKey.setValidFrom(new Timestamp(subscriber.getValidFrom().getTime()));
         publicKey.setValidUntil(new Timestamp(subscriber.getValidTo().getTime()));
         publicKey.setPublicKey(Request.getPemSigningKey(subscriber.getSigningPublicKey()));
@@ -152,6 +152,7 @@ public class SearchExtensionInstaller implements Extension {
         context.setNetworkId(networkAdaptor.getId());
         context.setCity(adaptor.getSubscriber().getCity());
         context.setTtl(60);
+        context.setAction("on_search");
 
         for (in.succinct.beckn.Provider provider : providers){
             provider.setTag("general_attributes","catalog.indexer.reset","Y");
