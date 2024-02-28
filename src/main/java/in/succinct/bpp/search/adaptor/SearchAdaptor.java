@@ -595,7 +595,9 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
             outQuantity.setAvailable(avail);
             outQuantity.setMaximum(avail);
 
-            unitItem.setItemQuantity(outQuantity);
+            //unitItem.setItemQuantity(outQuantity);
+            //0.9.4 was fixed to not send this breakup.
+            unitItem.setQuantity(quantity); // Just send the selected quantity.
             unitItem.setTags(null);
 
             outItems.add(unitItem);
@@ -606,6 +608,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
 
             Item quoteItem = new Item((JSONObject) JSONAwareWrapper.parse(unitItem.getInner().toString()));
             quoteItem.setFulfillmentId(null);
+            quoteItem.setItemQuantity(outQuantity);
 
 
             //quoteItem.setItemQuantity(null);
