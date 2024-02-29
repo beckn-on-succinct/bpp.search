@@ -529,8 +529,10 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
             }
         }
 
-        finalOrder.setProviderLocation(providerLocation);
-        finalOrder.getProvider().getLocations().add(providerLocation);
+        Location finalLocation = new Location();
+        finalLocation.setId(providerLocation.getId());
+        finalOrder.setProviderLocation(finalLocation);
+        finalOrder.getProvider().getLocations().add(finalLocation);
 
 
         Price orderPrice = new Price();
