@@ -537,7 +537,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
 
         Price orderPrice = new Price();
         orderPrice.setValue(0.0);
-        orderPrice.setCurrency("INR");
+        orderPrice.setCurrency(getCurrency());
         BreakUp breakUp = new BreakUp();
 
 
@@ -618,23 +618,23 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
             element.setItem(quoteItem);
 
             breakUp.add(element);
-            orderPrice.setCurrency("INR");
+            orderPrice.setCurrency(getCurrency());
             orderPrice.setValue(orderPrice.getValue() + element.getPrice().getValue());
 
             Price orderTaxPrice = tax_total.getPrice();
-            orderTaxPrice.setCurrency("INR");
+            orderTaxPrice.setCurrency(getCurrency());
             orderTaxPrice.setValue(orderTaxPrice.getValue() + unitItem.getTax().getValue() * quantity.getCount());
         }
 
         Price orderTaxPrice = tax_total.getPrice();
-        orderTaxPrice.setCurrency("INR");
+        orderTaxPrice.setCurrency(getCurrency());
         //Inlude shipping tax
         double factor = isTaxIncludedInPrice() ? deliveryTaxRate/ (1 + deliveryTaxRate) : deliveryTaxRate;
         orderTaxPrice.setValue(orderTaxPrice.getValue() + factor * shipping_total.getPrice().getValue());
 
 
         orderPrice.setValue(orderPrice.getValue() + shipping_total.getPrice().getValue()  + (isTaxIncludedInPrice() ? 0 : orderTaxPrice.getValue()));
-        orderPrice.setCurrency("INR");
+        orderPrice.setCurrency(getCurrency());
 
 
         finalOrder.getQuote().setTtl(15L*60L); //15 minutes.
@@ -651,7 +651,6 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
 
         return dbItems.isEmpty() ? null : dbItems.get(0);
     }
-
 
 
 
