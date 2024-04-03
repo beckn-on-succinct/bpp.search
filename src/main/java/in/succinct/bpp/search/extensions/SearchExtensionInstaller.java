@@ -1,5 +1,6 @@
 package in.succinct.bpp.search.extensions;
 
+import com.venky.core.util.ObjectUtil;
 import com.venky.extension.Extension;
 import com.venky.extension.Registry;
 import com.venky.swf.db.Database;
@@ -16,6 +17,7 @@ import com.venky.swf.plugins.background.core.DbTask;
 import com.venky.swf.plugins.background.core.TaskManager;
 import com.venky.swf.plugins.beckn.messaging.Subscriber;
 import com.venky.swf.plugins.collab.db.model.participants.admin.Company;
+import com.venky.swf.routing.Config;
 import com.venky.swf.sql.Expression;
 import com.venky.swf.sql.Operator;
 import com.venky.swf.sql.Select;
@@ -33,10 +35,14 @@ import in.succinct.onet.core.adaptor.NetworkAdaptor;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.logging.Level;
+import java.util.stream.Collectors;
 
 public class SearchExtensionInstaller implements Extension {
     static {
@@ -112,6 +118,24 @@ public class SearchExtensionInstaller implements Extension {
             });
             return;
         }
+        Event event = Event.find(CATALOG_SYNC_EVENT);
+        if (event == null){
+            Config.instance().getLogger(getClass().getName()).log(Level.WARNING, CATALOG_SYNC_EVENT + ": event not defined");
+            return;
+        }
+        Set<Long> endPoints = adaptor.getApplication().getEndPoints().stream().filter(ep -> {
+            return ObjectUtil.equals(ep.getBaseUrl(), adaptor.getSubscriber().getSubscriberUrl());
+        }).map(ep -> ep.getId()).collect(Collectors.toSet());
+
+
+        List<EventHandler> catalogSyncHandlers = adaptor.getApplication().getEventHandlers().stream().filter(eh -> {
+            return endPoints.contains(eh.getEndPointId());
+        }).collect(Collectors.toList());
+
+        if (catalogSyncHandlers.isEmpty()){
+            Config.instance().getLogger(getClass().getName()).log(Level.WARNING,"Catalog not indexed as there are no handlers installed for " + CATALOG_SYNC_EVENT);
+            return;
+        }
 
         Request response = new Request();
         ((NetworkApiAdaptor)networkAdaptor.getApiAdaptor())._search(adaptor,response);
@@ -127,10 +151,7 @@ public class SearchExtensionInstaller implements Extension {
                 context.remove(_IPath.class.getName());
                 Database.getInstance().setContext(context);
             }
-            Event event = Event.find(CATALOG_SYNC_EVENT);
-            if (event != null ){
-                event.raise(prepareCatalogSyncRequest(providers,adaptor,networkAdaptor));
-            }
+            event.raise(catalogSyncHandlers,prepareCatalogSyncRequest(providers,adaptor,networkAdaptor));
         },false);
 
     }
