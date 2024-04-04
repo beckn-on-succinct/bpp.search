@@ -387,8 +387,8 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                 }
                 if (items.get(dbItem.getObjectId()) == null) {
                     Item outItem = new Item((JSONObject) JSONAwareWrapper.parse(dbItem.getObjectJson()));
-                    if (!outItem.getFulfillmentIds().isEmpty() ) {
-                        outItem.setFulfillmentId(outItem.getFulfillmentIds().get(0));
+                    if (!outItem.getFulfillmentIds().isEmpty() && dbFulfillment != null) {
+                        outItem.setFulfillmentId(dbFulfillment.getObjectId());
                     }
                     if (!outItem.getLocationIds().isEmpty()) {
                         outItem.setLocationId(outItem.getLocationIds().get(0));
