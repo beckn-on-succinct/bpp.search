@@ -124,12 +124,14 @@ public class SearchExtensionInstaller implements Extension {
             return;
         }
         Set<Long> endPoints = adaptor.getApplication().getEndPoints().stream().filter(ep -> {
-            return ObjectUtil.equals(ep.getBaseUrl(), adaptor.getSubscriber().getSubscriberUrl());
+            return ObjectUtil.equals(ep.getBaseUrl(), adaptor.getSubscriber().getSubscriberUrl()) ||
+                    ObjectUtil.equals(ep.getBaseUrl(), networkAdaptor.getBaseUrl()) ||
+                    ObjectUtil.equals(ep.getBaseUrl(), networkAdaptor.getSearchProvider().getSubscriberUrl());
         }).map(ep -> ep.getId()).collect(Collectors.toSet());
 
 
         List<EventHandler> catalogSyncHandlers = adaptor.getApplication().getEventHandlers().stream().filter(eh -> {
-            return endPoints.contains(eh.getEndPointId());
+            return endPoints.contains(eh.getEndPointId()) && eh.getEventId() == event.getId();
         }).collect(Collectors.toList());
 
         if (catalogSyncHandlers.isEmpty()){
