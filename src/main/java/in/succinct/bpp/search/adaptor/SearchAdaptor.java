@@ -24,7 +24,7 @@ import in.succinct.beckn.Context;
 import in.succinct.beckn.Descriptor;
 import in.succinct.beckn.Error;
 import in.succinct.beckn.Error.Type;
-import in.succinct.beckn.Fulfillment.FulfillmentType;
+import in.succinct.beckn.Fulfillment.RetailFulfillmentType;
 import in.succinct.beckn.FulfillmentStop;
 import in.succinct.beckn.Fulfillments;
 import in.succinct.beckn.Images;
@@ -141,11 +141,12 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
         }
         in.succinct.beckn.Fulfillment intentFulfillment = intent.getFulfillment();
         if (intentFulfillment != null){
-            if (intentFulfillment.getType() == FulfillmentType.home_delivery && !getProviderConfig().isHomeDeliverySupported()){
+            RetailFulfillmentType type = intentFulfillment.getType() != null ? RetailFulfillmentType.valueOf(intentFulfillment.getType()) : null;
+            if (type == RetailFulfillmentType.home_delivery && !getProviderConfig().isHomeDeliverySupported()){
                 return;
-            }else if (intentFulfillment.getType() == FulfillmentType.store_pickup && !getProviderConfig().isStorePickupSupported()){
+            }else if (type == RetailFulfillmentType.store_pickup && !getProviderConfig().isStorePickupSupported()){
                 return;
-            }else if (intentFulfillment.getType() == FulfillmentType.return_to_origin && (!getProviderConfig().isReturnPickupSupported() || !getProviderConfig().isReturnSupported())){
+            }else if (type == RetailFulfillmentType.return_to_origin && (!getProviderConfig().isReturnPickupSupported() || !getProviderConfig().isReturnSupported())){
                 return;
             }
         }
@@ -287,7 +288,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                 Provider outProvider = providers.get(dbProvider.getObjectId());
                 if (outProvider == null) {
                     outProvider = new Provider(dbProvider.getObjectJson());
-                    outProvider.setExp(DateUtils.addMinutes(request.getContext().getTimestamp(),(int)outProvider.getTtl()));
+                    outProvider.setExp(DateUtils.addMinutes(request.getContext().getTimestamp(),Database.getJdbcTypeHelper("").getTypeRef(int.class).getTypeConverter().valueOf(outProvider.getTtl())));
                     /* Only on Beckn 1.1
                     TagGroup tagGroup = new TagGroup();
                     outProvider.setTags(tagGroup);
@@ -396,11 +397,13 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                     outItem.setTime(new Time());
                     outItem.getTime().setLabel(dbItem.isActive() ? "enable" : "disable");
                     outItem.getTime().setTimestamp(dbItem.getUpdatedAt());
-                    FulfillmentType outFulfillmentType = fulfillments.get(outItem.getFulfillmentId()).getType();
-                    FulfillmentType inFulfillmentType = intentFulfillment == null ? null : intentFulfillment.getType();
+                    String outFulfillmentType = fulfillments.get(outItem.getFulfillmentId()).getType() ;
+                    String inFulfillmentType = intentFulfillment == null || intentFulfillment.getType() == null ?  null : intentFulfillment.getType();
+
                     FulfillmentStop end = intentFulfillment == null ? null : intentFulfillment.getEnd();
 
-                    if (outFulfillmentType.matches(inFulfillmentType) ) {
+
+                    if (outFulfillmentType != null && outFulfillmentType.matches(inFulfillmentType) ) {
 
                         outItem.setMatched(true);
                         outItem.setRelated(true);
@@ -415,7 +418,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                         outItem.setTentativeItemQuantity(itemQuantity);
 
                         Location storeLocation = locations.get(outItem.getLocationId());
-                        City city = City.findByCountryAndStateAndName(storeLocation.getAddress().getCountry(),storeLocation.getAddress().getState(),storeLocation.getAddress().getCity());
+                        City city = City.findByCountryAndStateAndName(storeLocation.getCountry().getCode(),storeLocation.getState().getCode(),storeLocation.getCity().getCode());
 
                         boolean storeInCity = ObjectUtil.equals(city.getCode(),request.getContext().getCity()) || ObjectUtil.equals(request.getContext().getCity(),"*");
 
