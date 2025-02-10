@@ -14,6 +14,7 @@ import com.venky.swf.sql.Conjunction;
 import com.venky.swf.sql.Expression;
 import com.venky.swf.sql.Operator;
 import com.venky.swf.sql.Select;
+import in.succinct.beckn.BecknStrings;
 import in.succinct.beckn.BreakUp;
 import in.succinct.beckn.BreakUp.BreakUpElement;
 import in.succinct.beckn.BreakUp.BreakUpElement.BreakUpCategory;
@@ -258,10 +259,10 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
         records.forEach(i->{
             subscriberIds.add(i.getSubscriberId());
             providerIds.add(i.getProviderId());
-            providerLocationIds.add(i.getProviderLocationId());
-            fulfillmentIds.add(i.getFulfillmentId());
-            categoryIds.add(i.getCategoryId());
-            paymentIds.add(i.getPaymentId());
+            providerLocationIds.addAll(BecknStrings.parse(i.getLocationIds()));
+            fulfillmentIds.addAll(BecknStrings.parse(i.getFulfillmentIds()));
+            categoryIds.addAll(BecknStrings.parse(i.getCategoryIds()));
+            paymentIds.addAll(BecknStrings.parse(i.getPaymentIds()));
             appItemMap.get(i.getSubscriberId()).put(i.getId(),i);
         });
         Cache<String, Cache<Long, in.succinct.catalog.indexer.db.model.Provider>> appProviderMap = createAppDbCache(in.succinct.catalog.indexer.db.model.Provider.class,providerIds);
@@ -280,10 +281,6 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                 in.succinct.catalog.indexer.db.model.Item dbItem = itemMap.get(itemId);
 
                 in.succinct.catalog.indexer.db.model.Provider dbProvider = appProviderMap.get(subscriberId).get(dbItem.getProviderId());
-                ProviderLocation dbProviderLocation = appLocationMap.get(subscriberId).get(dbItem.getProviderLocationId());
-                Fulfillment dbFulfillment = appFulfillmentMap.get(subscriberId).get(dbItem.getFulfillmentId());
-                in.succinct.catalog.indexer.db.model.Category dbCategory = appCategoryMap.get(subscriberId).get(dbItem.getCategoryId());
-                Payment dbPayment = appPaymentMap.get(subscriberId).get(dbItem.getPaymentId());
 
                 Provider outProvider = providers.get(dbProvider.getObjectId());
                 if (outProvider == null) {
@@ -317,69 +314,49 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                 }
                 Categories categories = outProvider.getCategories();
                 if (categories == null) {
-                    categories = new Categories();
+                    categories = new Categories(){{
+                        for (in.succinct.catalog.indexer.db.model.Category dbProviderCategory : dbProvider.getCategories()) {
+                            add(new Category(dbProviderCategory.getObjectJson()));
+                        }
+                    }};
                     outProvider.setCategories(categories);
-                }
-                if (dbCategory != null) {
-                    Category outCategory = categories.get(dbCategory.getObjectId());
-                    if (outCategory == null) {
-                        categories.add(new Category(dbCategory.getObjectJson()));
-                    }
                 }
 
                 Locations locations = outProvider.getLocations();
                 if (locations == null) {
-                    locations = new Locations();
+                    locations = new Locations(){{
+                        for (ProviderLocation providerLocation : dbProvider.getProviderLocations()) {
+                            add(new Location(providerLocation.getObjectJson()));
+                        }
+                    }};
                     outProvider.setLocations(locations);
-                }
-                if (dbProviderLocation != null) {
-                    Location outLocation = locations.get(dbProviderLocation.getObjectId());
-                    if (outLocation == null) {
-                        locations.add(new Location(dbProviderLocation.getObjectJson()));
-                    }
                 }
 
                 Fulfillments fulfillments = outProvider.getFulfillments();
                 if (fulfillments == null) {
-                    fulfillments = new Fulfillments();
-                    outProvider.setFulfillments(fulfillments);
-                }
-                if (dbFulfillment != null) {
-                    in.succinct.beckn.Fulfillment outFulfillment = fulfillments.get(dbFulfillment.getObjectId());
-                    if (outFulfillment == null) {
-                        outFulfillment = new in.succinct.beckn.Fulfillment(dbFulfillment.getObjectJson());
-                        fulfillments.add(outFulfillment);
-
-                        in.succinct.beckn.Fulfillment catFulfillment = catalog.getFulfillments().get(dbFulfillment.getObjectId());
-                        if (catFulfillment == null){
-                            //Qadoo expected only id and type. !!TTa
-                            catFulfillment = new in.succinct.beckn.Fulfillment();
-                            catFulfillment.setId(outFulfillment.getId());
-                            catFulfillment.setType(outFulfillment.getType());
-                            catalog.getFulfillments().add(catFulfillment);
+                    fulfillments = new Fulfillments() {{
+                        for (Fulfillment fulfillment : dbProvider.getFulfillments()) {
+                            add(new in.succinct.beckn.Fulfillment(fulfillment.getObjectJson()));
                         }
-                    }
+                    }};
+                    outProvider.setFulfillments(fulfillments);
+                    catalog.setFulfillments(fulfillments);
                 }
-
+                
                 Payments payments = outProvider.getPayments();
                 if (payments == null) {
-                    payments = new Payments();
-                    outProvider.setPayments(payments);
-                }
-                in.succinct.beckn.Payment bapPaymentIntent = request.getMessage().getIntent().getPayment();
-                if (dbPayment != null) {
-                    if (payments.get(dbPayment.getObjectId()) == null) {
-                        in.succinct.beckn.Payment payment = new in.succinct.beckn.Payment(dbPayment.getObjectJson());
-                        if (bapPaymentIntent != null ) {
-                            if (bapPaymentIntent.getBuyerAppFinderFeeType() == CommissionType.Percent){
-                                if (bapPaymentIntent.getBuyerAppFinderFeeAmount() > getProviderConfig().getMaxAllowedCommissionPercent()){
-                                    throw new GenericBusinessError("Max commission percent exceeded");
-                                }
+                    in.succinct.beckn.Payment bapPaymentIntent = request.getMessage().getIntent().getPayment();
+                    payments = new Payments(){{
+                        for (Payment payment : dbProvider.getPayments()) {
+                            in.succinct.beckn.Payment becknPayment = new in.succinct.beckn.Payment(payment.getObjectJson());
+                            add(becknPayment);
+                            if (bapPaymentIntent != null ) {
+                                becknPayment.update(bapPaymentIntent); //need toupdate from the intent.!
                             }
-                            payment.update(bapPaymentIntent); //need toupdate from the intent.!
+                            
                         }
-                        payments.add(payment);
-                    }
+                    }};
+                    outProvider.setPayments(payments);
                 }
                 Items items = outProvider.getItems();
                 if (items == null) {
@@ -388,12 +365,6 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                 }
                 if (items.get(dbItem.getObjectId()) == null) {
                     Item outItem = new Item((JSONObject) JSONAwareWrapper.parse(dbItem.getObjectJson()));
-                    if (!outItem.getFulfillmentIds().isEmpty() && dbFulfillment != null) {
-                        outItem.setFulfillmentId(dbFulfillment.getObjectId());
-                    }
-                    if (!outItem.getLocationIds().isEmpty()) {
-                        outItem.setLocationId(outItem.getLocationIds().get(0));
-                    }
                     outItem.setTime(new Time());
                     outItem.getTime().setLabel(dbItem.isActive() ? "enable" : "disable");
                     outItem.getTime().setTimestamp(dbItem.getUpdatedAt());
@@ -497,11 +468,12 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
 
     private Order getQuote(Context context, Order order, Error error) {
         fixFulfillment(context,order);
-        in.succinct.beckn.Fulfillment fulfillment = order.getFulfillment();
+        in.succinct.beckn.Fulfillments fulfillments  = order.getFulfillments();
+        in.succinct.beckn.Fulfillment fulfillment = fulfillments == null || fulfillments.isEmpty() ? null : fulfillments.get(0);
         FulfillmentStop end = fulfillment == null ? null : fulfillment.getEnd();
 
         fixLocation(order);
-        Location  providerLocation = order.getProviderLocation();
+        Location  providerLocation = order.getProvider().getLocations().get(0);
 
         Order finalOrder = new Order();
         finalOrder.setProvider(new Provider());
@@ -514,7 +486,6 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
         Serviceability serviceability = null;
         if (fulfillment != null){
             finalOrder.getFulfillments().add(fulfillment);
-            finalOrder.setFulfillment(fulfillment);
             serviceability = getProviderConfig().getServiceability(fulfillment.getType(),end,providerLocation);
             if (serviceability.isServiceable()){
                 fulfillment.getState(true).getDescriptor(true).setCode("Serviceable");
@@ -526,7 +497,6 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                     fulfillment = new in.succinct.beckn.Fulfillment(f.toString());
                     fulfillment.getState(true).getDescriptor(true).setCode("Serviceable");
                     finalOrder.getFulfillments().add(fulfillment);
-                    finalOrder.setFulfillment(fulfillment);
                     break;
                 }
             }
@@ -534,7 +504,6 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
 
         Location finalLocation = new Location();
         finalLocation.setId(providerLocation.getId());
-        finalOrder.setProviderLocation(finalLocation);
         finalOrder.getProvider().getLocations().add(finalLocation);
 
 
@@ -582,7 +551,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
 
             Item unitItem = new Item((JSONObject) JSONAwareWrapper.parse(dbItem.getObjectJson()));
 
-            unitItem.setFulfillmentId(finalOrder.getFulfillment() == null ? null : finalOrder.getFulfillment().getId());
+            unitItem.setFulfillmentId(finalOrder.getFulfillments() == null || finalOrder.getFulfillments().isEmpty() ? null : finalOrder.getFulfillments().get(0).getId());
             unitItem.setFulfillmentIds(null);
 
             Quantity avail = new Quantity(); avail.setCount(getProviderConfig().getMaxOrderQuantity());
