@@ -369,7 +369,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
                     String outFulfillmentType = fulfillments.get(outItem.getFulfillmentId()).getType() ;
                     String inFulfillmentType = intentFulfillment == null || intentFulfillment.getType() == null ?  null : intentFulfillment.getType();
 
-                    FulfillmentStop end = intentFulfillment == null ? null : intentFulfillment.getEnd();
+                    FulfillmentStop end = intentFulfillment == null ? null : intentFulfillment._getEnd();
 
 
                     if (outFulfillmentType != null && outFulfillmentType.matches(inFulfillmentType) ) {
@@ -468,7 +468,7 @@ public abstract class SearchAdaptor extends AbstractCommerceAdaptor {
         fixFulfillment(context,order);
         in.succinct.beckn.Fulfillments fulfillments  = order.getFulfillments();
         in.succinct.beckn.Fulfillment fulfillment = fulfillments == null || fulfillments.isEmpty() ? null : fulfillments.get(0);
-        FulfillmentStop end = fulfillment == null ? null : fulfillment.getEnd();
+        FulfillmentStop end = fulfillment == null ? null : fulfillment._getEnd();
 
         fixLocation(order);
         Location  providerLocation = order.getProvider().getLocations().get(0);
