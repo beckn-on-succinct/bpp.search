@@ -125,7 +125,7 @@ public class SearchExtensionInstaller implements Extension {
         context.setTimestamp(new Date());
         context.setNetworkId(networkAdaptor.getId());
         context.setCity(adaptor.getSubscriber().getCity());
-        context.setTtl(60);
+        context.setTtl(60L);
         context.setAction("on_search");
 
         for (in.succinct.beckn.Provider provider : providers){
