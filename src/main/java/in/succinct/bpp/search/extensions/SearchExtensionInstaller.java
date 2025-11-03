@@ -46,16 +46,17 @@ public class SearchExtensionInstaller implements Extension {
     public void invoke(Object... context) {
         NetworkAdaptor networkAdaptor = (context.length > 0) ? (NetworkAdaptor) context[0] : null;
         CommerceAdaptor adaptor = (context.length > 1) ? (CommerceAdaptor) context[1] :null;
-        Application application = (context.length > 2) ? (Application)context[2] : null;
+        String providerId = (context.length > 2) ? (String) context[2] :null;
+        Application application = (context.length > 3) ? (Application)context[3] : null;
         if (adaptor != null) {
-            indexItems(networkAdaptor, adaptor);
+            indexItems(networkAdaptor, adaptor,providerId,application);
         }
     }
 
-    private void indexItems(NetworkAdaptor networkAdaptor,CommerceAdaptor adaptor) {
+    private void indexItems(NetworkAdaptor networkAdaptor,CommerceAdaptor adaptor,String providerId,Application application) {
         String subscriberId = adaptor.getSubscriber().getSubscriberId();
         Request response = new Request();
-        ((NetworkApiAdaptor)networkAdaptor.getApiAdaptor())._search(adaptor,response);
+        ((NetworkApiAdaptor)networkAdaptor.getApiAdaptor())._search(adaptor,providerId,response);
         Providers providers = response.getMessage().getCatalog().getProviders();
 
 
